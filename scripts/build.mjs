@@ -4,7 +4,6 @@ import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import sharp from 'sharp';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = (...p) => path.join(root, 'dist', ...p);
@@ -91,12 +90,8 @@ await writeFile(
     2,
   ),
 );
-const svg = await readFile(path.join(root, 'public/icon.svg'));
-await copyFile(path.join(root, 'public/icon.svg'), out('icon.svg'));
-for (const [name, size] of [['icon-180.png', 180], ['icon-192.png', 192], ['icon-512.png', 512]]) await sharp(svg).resize(size, size).png().toFile(out(name));
-// マスク用: 余白をとって角丸なしの背景
-const maskSvg = Buffer.from(String(svg).replace('rx="116"', 'rx="0"').replace('<g ', '<g transform="translate(51 51) scale(0.8)" ').replace('<path d="M318', '<path transform="translate(51 51) scale(0.8)" d="M318'));
-await sharp(maskSvg).resize(512, 512).png().toFile(out('icon-maskable.png'));
+// アイコン（PNG は scripts/icons.mjs で作って public/ に置いてある）
+for (const f of ['icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable.png']) await copyFile(path.join(root, 'public', f), out(f));
 
 // オフライン用の Service Worker。キャッシュ名に版を入れ、新しい版では古いキャッシュを消す
 const files = ['./', './index.html', `./${jsName}`, `./${cssName}`, './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];

@@ -1,0 +1,53 @@
+name: Test & deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: 型チェック
+        run: npm run typecheck
+      - name: データ・日付のテスト
+        run: npm test
+      - name: ビルド
+        run: npm run build
+      - name: 画面のテスト（iPhone・iPad・PC の画面サイズ）
+        run: |
+          npx playwright install --with-deps chromium
+          set -o pipefail
+          npm run test:e2e 2>&1 | tee e2e.log
+      - name: 画面のテストの失敗内容
+        if: failure()
+        run: |
+          grep -nE "^ *not ok|error:|^ +[+-] |Error" e2e.log | head -40 | while IFS= read -r l; do echo "::error title=e2e::$l"; done
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

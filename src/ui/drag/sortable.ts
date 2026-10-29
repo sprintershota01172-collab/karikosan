@@ -36,6 +36,7 @@ interface Snap {
   grab: number;
   target: number;
   lastClientY: number;
+  startClientY: number;
 }
 
 const ITEM = '[data-sort-key]';
@@ -69,7 +70,7 @@ export function attachSortable(root: HTMLElement, opts: SortableOptions): () => 
     const tops = els.map((x) => x.getBoundingClientRect().top - st);
     const heights = els.map((x) => x.getBoundingClientRect().height);
     const shift = i0 + 1 < els.length ? tops[i0 + 1] - tops[i0] : i0 > 0 ? tops[i0] - tops[i0 - 1] : heights[i0];
-    snap = { key, group, els, keys: els.map((x) => x.dataset.sortKey!), tops, heights, i0, shift, grab: contentY(clientY) - tops[i0], target: i0, lastClientY: clientY };
+    snap = { key, group, els, keys: els.map((x) => x.dataset.sortKey!), tops, heights, i0, shift, grab: contentY(clientY) - tops[i0], target: i0, lastClientY: clientY, startClientY: clientY };
     dragActive = true;
     root.classList.add('dragging-on');
     el.classList.add('lifted');
@@ -111,11 +112,12 @@ export function attachSortable(root: HTMLElement, opts: SortableOptions): () => 
     const step = () => {
       if (!snap) return;
       const r = opts.scroller.getBoundingClientRect();
-      const edge = Math.min(56, r.height / 5);
+      const edge = Math.min(48, r.height / 6);
       const y = snap.lastClientY;
       let v = 0;
-      if (y < r.top + edge) v = -Math.ceil(((r.top + edge - y) / edge) * 14);
-      else if (y > r.bottom - edge) v = Math.ceil(((y - (r.bottom - edge)) / edge) * 14);
+      // 端の近くでつかんだだけではスクロールしない（その向きへ動かしたときだけ）
+      if (y < r.top + edge && y < snap.startClientY - 8) v = -Math.ceil(((r.top + edge - y) / edge) * 14);
+      else if (y > r.bottom - edge && y > snap.startClientY + 8) v = Math.ceil(((y - (r.bottom - edge)) / edge) * 14);
       if (v) {
         const before = opts.scroller.scrollTop;
         opts.scroller.scrollTop = before + v;

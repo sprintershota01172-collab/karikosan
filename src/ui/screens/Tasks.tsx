@@ -68,7 +68,7 @@ function TaskPane() {
   return (
     <>
       <VehicleChips />
-      <div className="toolbar">
+      <div className="toolbar tb-tasks">
         <button type="button" className="chip" aria-pressed="false" onClick={() => commit((d) => setSortMode(d, sortMode === 'manual' ? 'due' : 'manual'), { undoable: false })} aria-label={`並び順: ${sortMode === 'manual' ? '手動' : '期限順'}`}>
           <Icon name="sort" size={14} />
           <span>{sortMode === 'manual' ? '手動' : '期限順'}</span>

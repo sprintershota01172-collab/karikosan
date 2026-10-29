@@ -86,7 +86,7 @@ function UpdateBar() {
     if (typeof __PWA__ === 'undefined' || !__PWA__ || BUILD === 'dev') return;
     let last = 0;
     const check = async () => {
-      if (document.hidden || Date.now() - last < 10 * 60_000) return;
+      if (document.hidden || !navigator.onLine || Date.now() - last < 10 * 60_000) return;
       last = Date.now();
       const b = await latestBuild();
       if (b && b !== BUILD) setReady(true);

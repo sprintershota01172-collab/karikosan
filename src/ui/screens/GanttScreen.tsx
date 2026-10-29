@@ -15,8 +15,8 @@ export function GanttScreen() {
   return (
     <div className="screen" style={{ paddingBottom: '0.5rem' }}>
       <VehicleChips />
-      <div className="toolbar">
-        <div style={{ width: '9.5rem' }}>
+      <div className="toolbar tb-gantt">
+        <div className="zoom">
           <Seg value={zoom} onChange={(v) => commit((d) => setSettings(d, { ganttZoom: v }), { undoable: false })} options={[{ value: 'day', label: '日' }, { value: 'week', label: '週' }, { value: 'month', label: '月' }]} label="表示の単位" />
         </div>
         <button type="button" className="chip" aria-pressed="false" onClick={() => commit((d) => setSortMode(d, sortMode === 'manual' ? 'due' : 'manual'), { undoable: false })} aria-label={`並び順: ${sortMode === 'manual' ? '手動' : '期限順'}`}>
@@ -24,13 +24,13 @@ export function GanttScreen() {
           <span>{sortMode === 'manual' ? '手動' : '期限順'}</span>
         </button>
         <span className="grow" />
-        <button type="button" className="iconbtn" aria-label="前へ" onClick={() => api.current?.('prev')}>
+        <button type="button" className="iconbtn step" aria-label="前へ" onClick={() => api.current?.('prev')}>
           <Icon name="left" />
         </button>
         <button type="button" className="btn small" onClick={() => api.current?.('today')}>
           今日
         </button>
-        <button type="button" className="iconbtn" aria-label="次へ" onClick={() => api.current?.('next')}>
+        <button type="button" className="iconbtn step" aria-label="次へ" onClick={() => api.current?.('next')}>
           <Icon name="right" />
         </button>
       </div>

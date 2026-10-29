@@ -78,7 +78,7 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   const geom: GanttGeom = useMemo(() => {
     const px = rootPx();
     const head = HEAD_REM * px;
-    const minRow = 1.6 * px;
+    const minRow = 1.4 * px;
     const rowH = Math.max(minRow, Math.floor((size.h - head) / 20));
     const nameW = Math.round((size.w >= 720 ? 15 : size.w >= 480 ? 11 : 8.5) * px);
     return { from: range.from, days: range.days, dayW: Math.round(DAY_REM[zoom] * px * 100) / 100, nameW, rowH };

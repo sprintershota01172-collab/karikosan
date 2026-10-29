@@ -146,6 +146,30 @@ input, textarea, select { font-size: max(1rem, 16px); } /* iPhone の自動拡�
 .seg button[aria-pressed='true'] { background: var(--surface); color: var(--navy); font-weight: 700; box-shadow: 0 1px 2px rgba(25, 40, 59, 0.08); }
 
 .toolbar { display: flex; align-items: center; gap: 0.375rem; min-width: 0; flex: none; height: 2.25rem; }
+/* 文字を大きくしても、ボタンははみ出さずに文字を省略して縮む */
+.toolbar .chip { flex: 0 1 auto; min-width: 2.25rem; }
+.toolbar .chip > span { min-width: 0; }
+.toolbar .seg { min-width: 0; flex: 0 1 auto; }
+.toolbar .iconbtn { width: 2.25rem; }
+/* 幅が足りないとき（文字を大きくしたとき）はボタンの文字を隠してアイコンだけにする */
+.toolbar { container-type: inline-size; }
+@container (max-width: 20rem) {
+  .tb-tasks .chip > span { display: none; }
+}
+.tb-gantt .zoom { width: 9.5rem; flex: none; }
+@container (max-width: 25rem) {
+  .tb-gantt .chip > span { display: none; }
+  .tb-gantt .zoom { width: 6.75rem; }
+}
+/* さらに狭いときは「前へ・次へ」を隠す（横スクロールと「今日」で移動できる） */
+@container (max-width: 19rem) {
+  .tb-gantt .step { display: none; }
+}
+/* 画面が狭いとき（文字を大きくしたとき）は一覧の担当者・進捗を隠して、タスク名を優先する */
+.main { container: main / inline-size; }
+@container main (max-width: 23rem) {
+  .trow .who, .trow .prog { display: none; }
+}
 
 .check {
   width: 1.375rem; height: 1.375rem; border-radius: 50%; border: 1.75px solid var(--gray); background: transparent; flex: none;
@@ -172,7 +196,7 @@ select.inp { background-image: linear-gradient(45deg, transparent 50%, var(--ink
 
 .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; color: var(--ink-3); text-align: center; padding: 2rem 1rem; font-size: 0.9rem; }
 
-.toast { position: fixed; left: 50%; bottom: calc(var(--nav) + env(safe-area-inset-bottom) + 3.75rem); transform: translateX(-50%); z-index: 60; background: var(--navy); color: #fff; border-radius: var(--r); padding: 0.625rem 0.875rem; font-size: 0.875rem; display: flex; align-items: center; gap: 0.75rem; max-width: calc(100vw - 2rem); box-shadow: 0 6px 20px rgba(25, 40, 59, 0.22); animation: toast-in var(--t-sheet) var(--ease); }
+.toast { position: fixed; left: 50%; bottom: calc(var(--nav) + env(safe-area-inset-bottom) + 3.75rem); transform: translateX(-50%); z-index: 60; background: var(--navy); color: #fff; border-radius: var(--r); padding: 0.625rem 0.875rem; font-size: 0.875rem; display: flex; align-items: center; gap: 0.75rem; width: max-content; max-width: calc(100vw - 2rem); box-shadow: 0 6px 20px rgba(25, 40, 59, 0.22); animation: toast-in var(--t-sheet) var(--ease); }
 .toast button { border: 0; background: transparent; color: #9fd5c8; font-weight: 700; white-space: nowrap; padding: 0.25rem; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 0.5rem); } }
 .update-bar { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 0.5rem); transform: translateX(-50%); z-index: 70; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r); padding: 0.5rem 0.75rem; display: flex; gap: 0.75rem; align-items: center; font-size: 0.875rem; box-shadow: 0 4px 14px rgba(25, 40, 59, 0.12); }
@@ -297,7 +321,8 @@ select.inp { background-image: linear-gradient(45deg, transparent 50%, var(--ink
 .gline .gname.t1 { padding-left: 0.75rem; }
 .gline .gname.t2 { padding-left: 1.25rem; }
 .gline .gtrack { position: relative; flex: none; border-bottom: 1px solid var(--line); }
-.gline[aria-selected='true'] .gname, .gline[aria-selected='true'] .gtrack { background-color: rgba(61, 116, 105, 0.1); }
+.gline[aria-selected='true'] .gname { background-color: #e3ece9; }
+.gline[aria-selected='true'] .gtrack { background-color: rgba(61, 116, 105, 0.1); }
 .gbg { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 0; }
 .gbg .we { position: absolute; top: 0; bottom: 0; background: var(--weekend); }
 .gbg .now { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(61, 116, 105, 0.55); }
@@ -359,3 +384,6 @@ kbd { font-family: var(--num); font-size: 0.75rem; padding: 0 0.25rem; border: 1
 .gline[aria-selected='true'] .gbar { touch-action: none; }
 .gbar.dim { opacity: 0.35; }
 .gprev { position: absolute; top: 18%; height: 64%; border-radius: 0.3rem; border: 1.5px solid var(--bar, var(--green)); background: color-mix(in srgb, var(--bar, var(--green)) 22%, transparent); z-index: 3; pointer-events: none; }
+/* 通知は下の操作のじゃまをしない（ボタンだけ押せる） */
+.toast { pointer-events: none; }
+.toast button { pointer-events: auto; }
