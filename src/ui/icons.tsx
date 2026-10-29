@@ -1,0 +1,52 @@
+import React from 'react';
+
+/** アイコン（24px 格子・線幅 1.75・角は丸く。すべて同じ線で描く） */
+const P: Record<string, string> = {
+  home: 'M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z',
+  tasks: 'M9 6.5h11M9 12h11M9 17.5h11M4 6.5l1.2 1.2L7.3 5.5M4 12l1.2 1.2L7.3 11M4 17.5l1.2 1.2 2.1-2.2',
+  gantt: 'M4 5v15h16M7.5 8h6M10 12h8M8.5 16h5',
+  calendar: 'M5 6.5h14a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7.5a1 1 0 0 1 1-1zM4 10.5h16M8.5 4v4M15.5 4v4',
+  settings: 'M12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6zM19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4.4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2l.4 2.6h4.4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z',
+  search: 'M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM15 15l5 5',
+  plus: 'M12 5v14M5 12h14',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  close: 'M6 6l12 12M18 6 6 18',
+  left: 'M14.5 6 8.5 12l6 6',
+  right: 'M9.5 6l6 6-6 6',
+  down: 'M6 9.5l6 6 6-6',
+  up: 'M6 14.5l6-6 6 6',
+  more: 'M6 12h.01M12 12h.01M18 12h.01',
+  trash: 'M5 7h14M9.5 7V5h5v2M7 7l1 12h8l1-12M10.5 10.5v5M13.5 10.5v5',
+  undo: 'M9 7 5 11l4 4M5 11h9a5 5 0 0 1 0 10h-2',
+  pin: 'M9 4h6l-1 5 3 3H7l3-3-1-5zM12 12v8',
+  filter: 'M4 6h16M7 12h10M10 18h4',
+  sort: 'M8 5v14M4.5 15.5 8 19l3.5-3.5M16 19V5M12.5 8.5 16 5l3.5 3.5',
+  clock: 'M12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15zM12 8v4.5l3 2',
+  place: 'M12 20s6-5.2 6-10a6 6 0 0 0-12 0c0 4.8 6 10 6 10zM12 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+  repeat: 'M17 4l3 3-3 3M4 11V9.5A2.5 2.5 0 0 1 6.5 7H20M7 20l-3-3 3-3M20 13v1.5a2.5 2.5 0 0 1-2.5 2.5H4',
+  car: 'M5 15.5V12l2-4.5h10l2 4.5v3.5M5 15.5h14M5 15.5V18h2.5v-2.5M16.5 15.5V18H19v-2.5M8 12.5h.01M16 12.5h.01',
+  folder: 'M4 7a1 1 0 0 1 1-1h4.5l2 2H19a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z',
+  list: 'M8 7h12M8 12h12M8 17h12M4.5 7h.01M4.5 12h.01M4.5 17h.01',
+  edit: 'M5 19h3.5L19 8.5 15.5 5 5 15.5zM13.5 7l3.5 3.5',
+  sun: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4',
+  skip: 'M6 6.5 12.5 12 6 17.5zM13 6.5 19.5 12 13 17.5z',
+  hide: 'M4 12s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6zM12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM5 19 19 5',
+  download: 'M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14',
+  upload: 'M12 15V4M7.5 8.5 12 4l4.5 4.5M5 19.5h14',
+  refresh: 'M19 8a7.5 7.5 0 1 0 1 6M19 4v4h-4',
+  user: 'M12 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5',
+  grip: 'M9 6.5h.01M15 6.5h.01M9 12h.01M15 12h.01M9 17.5h.01M15 17.5h.01',
+  tree: 'M5 5h5v4H5zM14 15h5v4h-5zM14 8h5v4h-5zM7.5 9v8H14M7.5 10h6.5',
+  text: 'M5 7V5h14v2M12 5v14M9 19h6',
+  share: 'M8.5 12a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6',
+};
+
+export function Icon({ name, size = 20, className }: { name: string; size?: number; className?: string }) {
+  const d = P[name] ?? P.more;
+  const dots = name === 'more' || name === 'grip';
+  return (
+    <svg className={`ic ${className ?? ''}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={dots ? 2.6 : 1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={d} />
+    </svg>
+  );
+}
