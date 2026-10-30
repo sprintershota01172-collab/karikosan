@@ -12,7 +12,7 @@
  */
 import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { reorder, setDone, setTaskRange } from '../../model/actions';
-import { addDays, diffDays, fromDay, isWeekend, monthOf, resizeEnd, resizeStart, shiftRange, shortDate, startOfWeek, toDay, today, workdays, workRuns } from '../../model/dates';
+import { addDays, daysInMonth, diffDays, fromDay, isWeekend, monthOf, monthStart, resizeEnd, resizeStart, shiftRange, shortDate, toDay, today, workdays, workRuns } from '../../model/dates';
 import type { Row } from '../../model/rows';
 import type { GanttZoom, Task } from '../../model/types';
 import { priorityOf } from '../../model/priority';
@@ -38,7 +38,10 @@ export interface GanttGeom {
   rowH: number;
 }
 
-/** 表示する日付の範囲（今日の8週間前から、最後の期限の3週間後まで。最低90日先まで） */
+/**
+ * 表示する日付の範囲（今日の8週間前から、最後の期限の3週間後まで。最低90日先まで）。
+ * 始まりと終わりは月の境目にそろえる（端に1日だけの月ができて、月の見出しが重ならないように）
+ */
 export function ganttRange(rows: Row[], day: string): { from: string; days: number } {
   let a = toDay(day) - 56;
   let b = toDay(day) + 90;
@@ -49,8 +52,11 @@ export function ganttRange(rows: Row[], day: string): { from: string; days: numb
     if (s) a = Math.min(a, toDay(s) - 7);
     if (e) b = Math.max(b, toDay(e) + 21);
   }
-  const from = startOfWeek(fromDay(a));
-  return { from, days: b - toDay(from) + 1 };
+  const s = monthOf(fromDay(a));
+  const from = monthStart(s.y, s.m);
+  const e = monthOf(fromDay(b));
+  const last = toDay(monthStart(e.y, e.m)) + daysInMonth(e.y, e.m) - 1;
+  return { from, days: last - toDay(from) + 1 };
 }
 
 function useSize(el: { current: HTMLElement | null }) {
@@ -154,15 +160,16 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   const headH = HEAD_REM * rootPx();
   const pager = usePager(scroller, size.w > 0, { item: '.gline[data-sort-key]', stops: '.gline', top: () => headH });
 
+  /** 月の見出し: 月ごとの区間。文字は区間の中で左に貼りつく（sticky）ので、横に動かしても今の月が見え、隣の月と重ならない */
   const months = useMemo(() => {
-    const out: { left: number; label: string }[] = [];
+    const out: { left: number; width: number; label: string }[] = [];
+    const end = toDay(geom.from) + geom.days;
     let d = geom.from;
-    const end = addDays(geom.from, geom.days);
-    while (toDay(d) < toDay(end)) {
+    while (toDay(d) < end) {
       const { y, m } = monthOf(d);
-      out.push({ left: x(d), label: m === 1 || out.length === 0 ? `${y}年${m}月` : `${m}月` });
-      const nm = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
-      d = nm;
+      const next = Math.min(end, toDay(d) + daysInMonth(y, m) - (Number(d.slice(8, 10)) - 1));
+      out.push({ left: x(d), width: (next - toDay(d)) * geom.dayW, label: `${y}年${m}月` });
+      d = fromDay(next);
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,8 +195,8 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
               </div>
               <div className="gdays" style={{ width: `${geom.days * geom.dayW}px`, height: `${headH}px` }}>
                 {months.map((m) => (
-                  <div key={m.left} className="gmonth" style={{ left: `${m.left}px` }}>
-                    {m.label}
+                  <div key={m.left} className="gmonth" style={{ left: `${m.left}px`, width: `${m.width}px` }}>
+                    <span style={{ left: `${geom.nameW}px` }}>{m.label}</span>
                   </div>
                 ))}
                 {zoom !== 'month' &&

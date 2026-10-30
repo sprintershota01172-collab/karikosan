@@ -324,7 +324,9 @@ select.inp { background-image: linear-gradient(45deg, transparent 50%, var(--ink
 .ghead { position: sticky; top: 0; z-index: 4; display: flex; background: var(--surface); border-bottom: 1px solid var(--line-2); }
 .ghead .corner { position: sticky; left: 0; z-index: 5; background: var(--surface); border-right: 1px solid var(--line-2); flex: none; display: flex; align-items: flex-end; padding: 0 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ink-3); }
 .gdays { position: relative; flex: none; }
-.gmonth { position: absolute; top: 0; height: 1.25rem; font-size: 0.72rem; font-weight: 700; color: var(--ink-2); padding-left: 0.3rem; border-left: 1px solid var(--line); white-space: nowrap; display: flex; align-items: center; }
+.gmonth { position: absolute; top: 0; height: 1.25rem; border-left: 1px solid var(--line); }
+/* 月の名前は区間の中で左端に貼りつく。区間の終わりで押し出されるので、隣の月の名前と重ならない */
+.gmonth > span { position: sticky; display: inline-block; height: 100%; line-height: 1.25rem; padding: 0 0.3rem; font-size: 0.72rem; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
 .gday { position: absolute; bottom: 0; height: 1.375rem; display: flex; align-items: center; justify-content: center; font-size: 0.68rem; color: var(--ink-2); }
 .gday.we { color: var(--ink-3); background: var(--weekend); }
 .gday.today { color: #fff; }

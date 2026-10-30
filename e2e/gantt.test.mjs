@@ -50,6 +50,58 @@ describe('表示', () => {
     });
   }
 
+  it('日付の見出しの文字が重ならない（左端・右端まで動かしても、日・週・月のどれでも、文字が大きくても）', async () => {
+    for (const [size, font] of [['se', 4], ['iphone', 10], ['pc', 4]]) {
+      const { ctx, page } = await open(size, { sample: false });
+      if (font !== 4) {
+        await tab(page, 'settings');
+        await page.$eval('input[aria-label="文字の大きさ"]', (e, v) => {
+          e.value = String(v);
+          e.dispatchEvent(new Event('input', { bubbles: true }));
+        }, font);
+      }
+      // 日付のないタスクだけ（ご指摘の画面と同じ状態）
+      await tab(page, 'tasks');
+      for (const t of ['相打ち', '産業ロボットの検討', 'ファナック？']) {
+        await page.fill('.quick .inp', t);
+        await page.press('.quick .inp', 'Enter');
+      }
+      await tab(page, 'gantt');
+      for (const z of ['日', '週', '月']) {
+        await page.locator('.seg[aria-label="表示の単位"] button', { hasText: z }).click();
+        await page.waitForTimeout(250);
+        for (const pos of [0, 0.25, 0.5, 0.75, 1]) {
+          const bad = await page.evaluate((pos) => {
+            const sc = document.querySelector('.gscroll');
+            sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) * pos;
+            const corner = document.querySelector('.ghead .corner').getBoundingClientRect();
+            const right = sc.getBoundingClientRect().right;
+            const vis = (r) => r.width > 0 && r.right > corner.right + 1 && r.left < right - 1;
+            const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5;
+            const out = [];
+            for (const sel of ['.gmonth > span', '.gday']) {
+              const els = [...document.querySelectorAll(sel)].map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() })).filter((x) => vis(x.r));
+              for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) if (hit(els[i].r, els[j].r)) out.push(`${els[i].t}×${els[j].t}`);
+            }
+            // 月の名前が区間からはみ出さない
+            for (const m of document.querySelectorAll('.gmonth')) {
+              const a = m.getBoundingClientRect();
+              const b = m.firstElementChild.getBoundingClientRect();
+              if (vis(b) && (b.left < a.left - 0.5 || b.right > a.right + 0.5)) out.push(`はみ出し ${b.width.toFixed(0)}>${a.width.toFixed(0)} ${m.textContent}`);
+            }
+            // いちばん左に見えている月の名前は、名前の列のすぐ右に出ている（今の月が分かる）
+            const first = [...document.querySelectorAll('.gmonth')].find((m) => m.getBoundingClientRect().right - corner.right > m.firstElementChild.getBoundingClientRect().width + 1);
+            const fr = first.firstElementChild.getBoundingClientRect();
+            if (fr.left < corner.right - 0.5) out.push(`今の月が名前の列の下: ${first.textContent}`);
+            return out;
+          }, pos);
+          assert.deepEqual(bad, [], `${size} 文字${font} ${z} 位置${pos}`);
+        }
+      }
+      await ctx.close();
+    }
+  });
+
   it('高速に縦スクロールしても、名前とバーが縦にずれない（同じ行の要素）', async () => {
     const { ctx, page } = await open('iphone');
     // 行を増やす（20行を超えて内部スクロールさせる）
