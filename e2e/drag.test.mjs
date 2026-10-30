@@ -1,7 +1,7 @@
 // 長押しドラッグの並べ替え（タッチ・マウス）、ガタつき（行ったり来たり）がないこと
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, saved, setup, tab, teardown, touchDrag } from './helpers.mjs';
+import { errors, ganttTitles, listTitles, open, openGroup, saved, setup, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -45,13 +45,16 @@ describe('タスクの並べ替え', () => {
     await ctx.close();
   });
 
-  it('タッチ: すぐに動かした場合はスクロールで、並べ替えにならない', async () => {
-    const { ctx, page } = await open('iphone');
+  it('タッチ: すぐに縦に動かしても、並べ替えにならず画面も動かない（縦スワイプなし）', async () => {
+    const { ctx, page } = await open('se');
     await tab(page, 'tasks');
     const before = await listTitles(page);
+    const top0 = await page.$eval('.pane:not(.out) .scroll', (e) => e.scrollTop);
     const r = await page.locator('.trow', { hasText: 'バンパー形状の検討' }).boundingBox();
     await touchDrag(page, { x: r.x + 100, y: r.y + 20 }, { x: r.x + 100, y: r.y - 150 }, { hold: 30 });
+    await touchDrag(page, { x: r.x + 100, y: r.y + 20 }, { x: r.x + 100, y: r.y + 150 }, { hold: 30 });
     assert.deepEqual(await listTitles(page), before);
+    assert.equal(await page.$eval('.pane:not(.out) .scroll', (e) => e.scrollTop), top0, '縦スワイプで一覧が動かない');
     await ctx.close();
   });
 
@@ -61,6 +64,7 @@ describe('タスクの並べ替え', () => {
     await page.click('.toolbar .chip:has-text("手動")');
     await page.waitForTimeout(300);
     assert.equal(await page.locator('.toolbar .chip:has-text("期限順")').count(), 1);
+    await openGroup(page, '試作・評価');
     const due = await listTitles(page);
     const a = await page.locator('.trow', { hasText: '試作部品の手配' }).boundingBox();
     const b = await page.locator('.trow', { hasText: '衝突解析の依頼' }).boundingBox();
@@ -85,6 +89,7 @@ describe('ガントの行の並べ替え', () => {
   it('名前の列を長押しで動かすと、名前とバーが同じ行で一緒に動き、一覧の順番も変わる', async () => {
     const { ctx, page } = await open('iphone');
     await tab(page, 'gantt');
+    await openGroup(page, '試作・評価');
     const r1 = await page.locator('.gline', { hasText: '試作部品の手配' }).locator('.gname').boundingBox();
     const r3 = await page.locator('.gline', { hasText: '評価計画書の作成' }).locator('.gname').boundingBox();
     const samples = await touchDrag(page, { x: r1.x + 60, y: r1.y + r1.height / 2 }, { x: r1.x + 60, y: r3.y + r3.height * 0.8 }, {

@@ -2,11 +2,13 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { addTask, hideToday, postpone, unhideToday } from '../../model/actions';
 import { addDays, shortDate, today } from '../../model/dates';
+import { priorityOf } from '../../model/priority';
 import { occurrences } from '../../model/recur';
 import { todayList } from '../../model/rows';
 import type { Task } from '../../model/types';
 import { commit, openSheet, setTab, setUI, useData } from '../../store/store';
-import { Check, Reveal } from '../components/bits';
+import { Check, PrioBadge, Reveal } from '../components/bits';
+import { PagerBar, usePager } from '../components/Pager';
 import { completeTask, dueLabel } from '../components/TaskList';
 import { Icon } from '../icons';
 import { vehicleColor } from '../view';
@@ -27,7 +29,7 @@ function SwipeTask({ t, color }: { t: Task; color: string }) {
   const remPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 15;
   const due = dueLabel(t);
   return (
-    <div className="swipe" data-flip={t.id}>
+    <div className="swipe" data-flip={t.id} data-pager-item>
       <div className="actions" aria-hidden={open ? 'false' : 'true'}>
         <button type="button" className="later" onClick={() => (setOpen(false), setX(0, false), commit((d) => postpone(d, t.id), { toast: `「${t.title}」を次の作業日に延期` }))}>
           <Icon name="skip" size={18} />
@@ -41,7 +43,7 @@ function SwipeTask({ t, color }: { t: Task; color: string }) {
       <div
         className="front"
         ref={front}
-        style={{ touchAction: 'pan-y' }}
+        style={{ touchAction: 'none' }}
         onPointerDown={(e: PointerEvent) => {
           if ((e.target as Element).closest('[data-no-drag]')) return;
           g.current = { x: e.clientX, y: e.clientY, dx: 0, dir: null, id: e.pointerId };
@@ -75,6 +77,7 @@ function SwipeTask({ t, color }: { t: Task; color: string }) {
           <Check on={t.done} label={`${t.title}を完了`} onChange={(v) => completeTask(t, v)} />
           <div className="title">
             <span style={{ width: '0.25rem', height: '1.1rem', borderRadius: 2, background: color, flex: 'none' }} />
+            <PrioBadge info={priorityOf(t, today())} />
             <Reveal text={t.title || '無題'} />
           </div>
           <div className="meta">
@@ -94,15 +97,20 @@ export function Home() {
   const { list, hidden } = useMemo(() => todayList(data, day), [data, day]);
   const events = useMemo(() => occurrences(data, day, addDays(day, 6)).slice(0, 12), [data, day]);
   const [showHidden, setShowHidden] = useState(false);
+  const taskBox = useRef<HTMLDivElement | null>(null);
+  const eventBox = useRef<HTMLDivElement | null>(null);
+  const tp = usePager(taskBox, true, { item: '[data-pager-item]', stops: '.swipe, .add-inline, .trow' });
+  const ep = usePager(eventBox, true, { item: '.erow', stops: '.erow' });
   return (
     <div className="screen">
       <div className="section-head">
         <span>今日のタスク</span>
         <span className="count num">{list.length}件</span>
+        {list.length > 1 && <span className="micro">優先度の高い順</span>}
         <span className="grow" />
         <span className="micro">{shortDate(day)}</span>
       </div>
-      <div className="scroll" style={{ flex: '1.3' }}>
+      <div className="scroll" style={{ flex: '0 1 auto', maxHeight: '58%' }} ref={taskBox}>
         {list.length === 0 && (
           <div className="empty" style={{ padding: '1.25rem 1rem' }}>
             <div>今日が期限・期間中のタスクはありません</div>
@@ -133,6 +141,7 @@ export function Home() {
           </>
         )}
       </div>
+      <PagerBar p={tp} />
       <div className="section-head">
         <span>直近の予定</span>
         <span className="count num">{events.length}件</span>
@@ -142,7 +151,7 @@ export function Home() {
           <Icon name="right" size={16} />
         </button>
       </div>
-      <div className="scroll" style={{ flex: '1' }}>
+      <div className="scroll" style={{ flex: '1' }} ref={eventBox}>
         {events.length === 0 && <div className="empty" style={{ padding: '1rem' }}>7日以内の予定はありません</div>}
         {events.map((o) => (
           <button key={o.key} type="button" className="erow" onClick={() => openSheet('event', { id: o.event.id })}>
@@ -158,6 +167,7 @@ export function Home() {
           </button>
         ))}
       </div>
+      <PagerBar p={ep} />
       <QuickAdd
         placeholder="今日のタスクを追加"
         onAdd={(title) => {

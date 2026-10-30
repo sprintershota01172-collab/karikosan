@@ -1,7 +1,7 @@
 // ガント: 20行表示、バーの移動・伸縮、土日、期限順の自動整列、一覧との同期
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, setup, sheet, tab, teardown, touchDrag } from './helpers.mjs';
+import { errors, ganttTitles, listTitles, open, openGroup, setup, sheet, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -107,6 +107,7 @@ describe('バーの操作', () => {
     const { ctx, page } = await open('pc');
     await tab(page, 'gantt');
     const t = '試作部品の手配';
+    await openGroup(page, '試作・評価');
     await page.locator('.gline', { hasText: t }).locator('.gname').click();
     const r0 = await range(page, t);
     const w = await dayW(page);
@@ -127,6 +128,7 @@ describe('バーの操作', () => {
     const { ctx, page } = await open('iphone');
     await tab(page, 'gantt');
     const t = 'テールランプ配置';
+    await openGroup(page, 'リア周り');
     const r0 = await range(page, t);
     const sc0 = await page.$eval('.gscroll', (e) => e.scrollLeft);
     let b = await bar(page, t).boundingBox();
@@ -143,6 +145,27 @@ describe('バーの操作', () => {
     const r1 = await range(page, t);
     assert.notDeepEqual(r1, r0);
     assert.equal(wdays(r1.start, r1.end), wdays(r0.start, r0.end));
+    await ctx.close();
+  });
+
+  it('タッチ: 右へスワイプしきっても縦にずれず、選択中の行のバーも動かない', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'gantt');
+    const t = 'バンパー形状の検討';
+    await page.locator('.gline', { hasText: t }).locator('.gname').click(); // 選択しておく
+    assert.equal(await page.locator('.gline[aria-selected="true"]', { hasText: t }).count(), 1);
+    const r0 = await range(page, t);
+    const top0 = await page.$eval('.gscroll', (e) => e.scrollTop);
+    for (let i = 0; i < 10; i++) {
+      const b = await bar(page, t).boundingBox();
+      const y = b.y + b.height / 2;
+      const x = Math.max(160, Math.min(b.x + 12, 300));
+      // 少し斜めに、すばやく右へ
+      await touchDrag(page, { x, y }, { x: x + 200, y: y + 30 }, { hold: 20, steps: 8 });
+    }
+    assert.equal(await page.$eval('.gscroll', (e) => e.scrollLeft), 0, '左端（過去側）まで来た');
+    assert.equal(await page.$eval('.gscroll', (e) => e.scrollTop), top0, '縦には動かない');
+    assert.deepEqual(await range(page, t), r0, 'バーの日付は変わらない');
     await ctx.close();
   });
 

@@ -68,7 +68,7 @@ export function freezeOrder(d: AppData): AppData {
  * 期限順のときは、いまの見た目の順を手動の順にしてから動かし、手動に切り替える。
  */
 export function reorder(d: AppData, container: string, visibleIds: ID[]): { data: AppData; switched: boolean } {
-  const switched = d.settings.sortMode === 'due';
+  const switched = d.settings.sortMode !== 'manual';
   let base = switched ? freezeOrder(d) : d;
   const all = sortTasks(base.tasks.filter((t) => containerOf(t) === container), 'manual');
   const vis = new Set(visibleIds);
@@ -152,12 +152,25 @@ export function addGroup(d: AppData, p: { name: string; vehicleId: ID | null; pa
   const vehicleId = parent ? parent.vehicleId : p.vehicleId;
   const siblings = d.groups.filter((g) => g.parentId === parentId && g.vehicleId === vehicleId);
   const group: Group = { id: uid('g'), vehicleId, parentId, name: p.name.trim() || (parentId ? '子ツリー' : 'グループ'), order: maxOrder(siblings) + 1, pinned: false, collapsed: false };
-  // 親を折りたたんでいたら開く（追加した枠が見えるように）
-  const groups = d.groups.map((g) => (g.id === parentId && g.collapsed ? { ...g, collapsed: false } : g));
-  return { data: touch({ ...d, groups: [...groups, group] }), group };
+  // 追加した枠を開く（親を折りたたんでいたら親も開く。1つずつ開く設定なら、ほかは閉じる）
+  return { data: setGroupOpen({ ...d, groups: [...d.groups, group] }, group.id, true), group };
 }
 
 export const updateGroup = (d: AppData, id: ID, patch: Partial<Pick<Group, 'name' | 'pinned' | 'collapsed'>>): AppData => touch({ ...d, groups: d.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+
+/**
+ * グループを開く・閉じる。「グループは1つずつ開く」のときは、開いたグループと同じ段のほかのグループを閉じる
+ * （最上位のグループは車種をまたいで1つだけ、子ツリーは同じ親の中で1つだけ）。子ツリーを開くときは親も開く。
+ */
+export function setGroupOpen(d: AppData, id: ID, open: boolean): AppData {
+  const g = d.groups.find((x) => x.id === id);
+  if (!g) return d;
+  if (!open) return g.collapsed ? d : updateGroup(d, id, { collapsed: true });
+  let next = g.parentId ? setGroupOpen(d, g.parentId, true) : d;
+  const one = d.settings.oneGroup;
+  next = { ...next, groups: next.groups.map((x) => (x.id === id ? { ...x, collapsed: false } : one && x.parentId === g.parentId && !x.collapsed ? { ...x, collapsed: true } : x)) };
+  return touch(next);
+}
 
 /** グループを消す。中のタスクは消さずに親（子ツリーなら親グループ、グループなら車種の直下）へ移す */
 export function deleteGroup(d: AppData, id: ID): AppData {
@@ -232,7 +245,29 @@ export function moveCheckItem(d: AppData, itemId: ID, toList: ID, toIds: ID[]): 
 
 export const setSettings = (d: AppData, patch: Partial<Settings>): AppData => ({ ...d, settings: { ...d.settings, ...patch }, updatedAt: Date.now() });
 
-/** 期限順・手動の切り替え（手動へ戻すときは、いまの見た目を保つ） */
+/** 「グループは1つずつ開く」の切り替え。オンにしたときは、表示順で最初に開いているものだけを残す */
+export function setOneGroup(d: AppData, on: boolean): AppData {
+  const next = setSettings(d, { oneGroup: on });
+  if (!on) return next;
+  const vOrder = new Map(d.vehicles.map((v) => [v.id, v.order]));
+  const vo = (id: ID | null) => (id ? vOrder.get(id) ?? 1e9 : 2e9);
+  const sorted = [...next.groups].sort((a, b) => Number(b.pinned) - Number(a.pinned) || vo(a.vehicleId) - vo(b.vehicleId) || a.order - b.order);
+  const kept = new Set<string>();
+  const close = new Set<ID>();
+  for (const g of sorted) {
+    if (g.collapsed) continue;
+    const k = g.parentId ?? '';
+    if (kept.has(k)) close.add(g.id);
+    else kept.add(k);
+  }
+  return { ...next, groups: next.groups.map((g) => (close.has(g.id) ? { ...g, collapsed: true } : g)) };
+}
+
+export const SORT_LABEL: Record<Settings['sortMode'], string> = { manual: '手動', due: '期限順', priority: '優先順' };
+/** 並び順のボタン: 手動 → 期限順 → 優先順 → 手動 */
+export const nextSortMode = (m: Settings['sortMode']): Settings['sortMode'] => (m === 'manual' ? 'due' : m === 'due' ? 'priority' : 'manual');
+
+/** 並び順の切り替え（手動へ戻すときは、いまの見た目を保つ） */
 export function setSortMode(d: AppData, mode: Settings['sortMode']): AppData {
   if (mode === d.settings.sortMode) return d;
   const base = mode === 'manual' ? freezeOrder(d) : d;

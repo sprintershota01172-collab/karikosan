@@ -6,6 +6,7 @@ import { addDays, addMonths, daysInMonth, monthOf, monthStart, shortDate, startO
 import { occurrences, REPEAT_LABEL } from '../../model/recur';
 import { openSheet, useData } from '../../store/store';
 import { Reveal } from '../components/bits';
+import { PagerBar, usePager } from '../components/Pager';
 import { Icon } from '../icons';
 import { vehicleColor } from '../view';
 
@@ -40,6 +41,8 @@ export function Calendar() {
   }, [data.tasks, vehicle]);
   // 選んだ日から2週間の予定（画面に5件以上見える）
   const list = useMemo(() => occurrences(data, sel, addDays(sel, 13), vehicle), [data, sel, vehicle]);
+  const listBox = useRef<HTMLDivElement | null>(null);
+  const lp = usePager(listBox, true, { item: '.erow', stops: '.erow' });
 
   const go = (n: number) => {
     setDir(n);
@@ -129,7 +132,7 @@ export function Calendar() {
           予定
         </button>
       </div>
-      <div className="scroll" style={{ paddingBottom: '0.5rem' }}>
+      <div className="scroll" style={{ paddingBottom: '0.5rem' }} ref={listBox}>
         {list.length === 0 && <div className="empty">予定はありません。「＋予定」から追加できます</div>}
         {list.map((o) => (
           <button key={o.key} type="button" className="erow" onClick={() => openSheet('event', { id: o.event.id })}>
@@ -147,6 +150,7 @@ export function Calendar() {
           </button>
         ))}
       </div>
+      <PagerBar p={lp} />
     </div>
   );
 }

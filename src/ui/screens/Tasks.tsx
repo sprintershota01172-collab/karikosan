@@ -1,15 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import { addTask, setSettings, setSortMode } from '../../model/actions';
+import { addTask, nextSortMode, setGroupOpen, setSettings, setSortMode, SORT_LABEL } from '../../model/actions';
 import type { Row } from '../../model/rows';
+import type { SortMode } from '../../model/types';
 import { commit, getUI, openSheet, setUI, useData, useUI } from '../../store/store';
 import { Seg } from '../components/bits';
+import { revealIn } from '../components/Pager';
 import { TaskList } from '../components/TaskList';
 import { VehicleChips } from '../components/VehicleChips';
 import { Icon } from '../icons';
 import { useRows } from '../view';
 import { Checklists } from './Checklists';
 
-const STATUS_LABEL = { all: 'すべて', open: '未完了', done: '完了', overdue: '期限超過', today: '今日', week: '今週' } as const;
+const STATUS_LABEL = { all: 'すべて', open: '未完了', done: '完了', overdue: '期限超過', today: '今日', week: '今週', urgent: '至急・高' } as const;
 
 /** クイック追加の行き先: 選んでいるグループ・タスクのグループ、なければ表示中の車種の直下 */
 export function addTarget(rows: Row[], selected: string | null, vehicle: string | 'all') {
@@ -43,6 +45,16 @@ export function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (
   );
 }
 
+/** 並び順のボタン（押すたびに 手動 → 期限順 → 優先順） */
+export function SortChip({ mode }: { mode: SortMode }) {
+  return (
+    <button type="button" className="chip" aria-pressed="false" onClick={() => commit((d) => setSortMode(d, nextSortMode(mode)), { undoable: false, toast: nextSortMode(mode) === 'priority' ? '優先度の高い順（至急 → 高 → 中 → 低）に並べました' : undefined })} aria-label={`並び順: ${SORT_LABEL[mode]}`}>
+      <Icon name="sort" size={14} />
+      <span>{SORT_LABEL[mode]}</span>
+    </button>
+  );
+}
+
 export function Tasks() {
   const view = useUI((u) => u.tasksView);
   return (
@@ -69,10 +81,7 @@ function TaskPane() {
     <>
       <VehicleChips />
       <div className="toolbar tb-tasks">
-        <button type="button" className="chip" aria-pressed="false" onClick={() => commit((d) => setSortMode(d, sortMode === 'manual' ? 'due' : 'manual'), { undoable: false })} aria-label={`並び順: ${sortMode === 'manual' ? '手動' : '期限順'}`}>
-          <Icon name="sort" size={14} />
-          <span>{sortMode === 'manual' ? '手動' : '期限順'}</span>
-        </button>
+        <SortChip mode={sortMode} />
         <button type="button" className="chip" aria-pressed={filtered ? 'true' : 'false'} onClick={() => openSheet('filter')}>
           <Icon name="filter" size={14} />
           <span>{filtered ? [status !== 'all' ? STATUS_LABEL[status] : '', assignee ?? '', query ? `「${query}」` : ''].filter(Boolean).join('・') : '絞り込み'}</span>
@@ -109,12 +118,14 @@ function TaskPane() {
           const t = addTarget(rows, getUI().selected, vehicle);
           let id = '';
           commit((d) => {
-            const r = addTask(d, { title, groupId: t.groupId, vehicleId: t.vehicleId });
+            // 閉じているグループに追加したときは開く（追加したタスクが見えるように）
+            const base = t.groupId && d.groups.find((g) => g.id === t.groupId)?.collapsed ? setGroupOpen(d, t.groupId, true) : d;
+            const r = addTask(base, { title, groupId: t.groupId, vehicleId: t.vehicleId });
             id = r.task.id;
             return r.data;
           });
           // 追加した行を見えるところへ
-          requestAnimationFrame(() => document.querySelector(`[data-sort-key="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+          requestAnimationFrame(() => requestAnimationFrame(() => revealIn(document.querySelector(`[data-sort-key="${id}"]`))));
         }}
       />
     </>

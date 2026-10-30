@@ -13,7 +13,7 @@ export const VEHICLE_COLORS = ['#3D7469', '#3B6EA8', '#B7791F', '#8E5BA8', '#C25
 let seq = 0;
 export const uid = (p = 'id'): string => `${p}_${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day' });
+export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', oneGroup: true });
 
 export function emptyData(): AppData {
   return { schema: SCHEMA, vehicles: [], groups: [], tasks: [], events: [], checklists: [], settings: defaultSettings(), updatedAt: Date.now() };
@@ -116,7 +116,7 @@ export function migrate(raw: unknown): AppData {
         due: date(t.due),
         done: bool(t.done),
         doneAt: typeof t.doneAt === 'number' ? t.doneAt : null,
-        priority: (pr >= 0 && pr <= 3 ? Math.round(pr) : 0) as Task['priority'],
+        priority: (pr >= 0 && pr <= 4 ? Math.round(pr) : 0) as Task['priority'],
         progress: Math.max(0, Math.min(100, Math.round(num(t.progress, 0)))),
         vehicleId: vref(t.vehicleId),
         groupId: gref(t.groupId),
@@ -169,9 +169,10 @@ export function migrate(raw: unknown): AppData {
   const settings: Settings = {
     fontStep: Math.max(1, Math.min(10, Math.round(num(s.fontStep, d.fontStep)))),
     showDone: bool(s.showDone, d.showDone),
-    sortMode: s.sortMode === 'due' ? 'due' : 'manual',
+    sortMode: s.sortMode === 'due' || s.sortMode === 'priority' ? s.sortMode : 'manual',
     vehicle: typeof s.vehicle === 'string' && (s.vehicle === 'all' || vIds.has(s.vehicle)) ? s.vehicle : 'all',
     ganttZoom: s.ganttZoom === 'week' || s.ganttZoom === 'month' ? s.ganttZoom : 'day',
+    oneGroup: bool(s.oneGroup, d.oneGroup),
   };
 
   return { schema: SCHEMA, vehicles, groups, tasks, events, checklists, settings, updatedAt: num(src.updatedAt, Date.now()) };

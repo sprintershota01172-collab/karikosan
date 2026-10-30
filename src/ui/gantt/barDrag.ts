@@ -1,7 +1,8 @@
 /**
  * ガントのバーの移動・伸縮。
  *  - マウス: そのまま押して動かす（3px 以上で開始）
- *  - タッチ: 選択中の行のバーはすぐに、選択していない行は長押し（220ms）で開始。それまでに動かしたら横スクロールとして扱う
+ *  - タッチ: いつも長押し（250ms）で開始。それまでに指を動かしたら横スクロールとして扱う
+ *    （横にスワイプしただけで日付が変わらないように。選択中の行は両端の長押しで開始日・期限を変えられる）
  * 操作中はプレビューの枠と日付の吹き出しだけを動かし、指を離したときに1回だけ保存する。
  */
 import { shortDate, workdays } from '../../model/dates';
@@ -122,20 +123,15 @@ export function attachBarDrag(root: HTMLElement, scroller: HTMLElement, geom: ()
     if (!f) return;
     const t = e.touches[0];
     pending = { ...f, x: t.clientX, y: t.clientY, touch: true };
-    if (isSelected(f.bar)) {
-      // 選択中のバーはすぐに操作できる（touch-action: none で、ブラウザはスクロールしない）
-      const p = pending;
-      pending = null;
-      begin(p.bar, p.kind, p.x);
-      return;
-    }
-    if (f.kind !== 'move') pending.kind = 'move';
+    // 両端（伸縮）は選択中の行だけ。選択していない行は全体の移動
+    if (f.kind !== 'move' && !isSelected(f.bar)) pending.kind = 'move';
     timer = setTimeout(() => {
       if (!pending) return;
       const p = pending;
       clear();
       begin(p.bar, p.kind, p.x);
-    }, 220);
+      navigator.vibrate?.(8);
+    }, 250);
   };
   const onTouchMove = (e: TouchEvent) => {
     if (act) {

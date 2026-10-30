@@ -4,7 +4,8 @@
  *
  *   車種（すべて表示のとき） → グループ → 子ツリー → タスク
  */
-import { addDays, startOfWeek, toDay } from './dates';
+import { addDays, startOfWeek, today as todayStr, toDay } from './dates';
+import { comparePriority, priorityOf } from './priority';
 import type { AppData, DateStr, Group, ID, SortMode, Task, Vehicle } from './types';
 
 export interface Stats {
@@ -20,10 +21,11 @@ export interface Stats {
 export type Row =
   | { kind: 'vehicle'; key: string; vehicle: Vehicle | null; stats: Stats }
   | { kind: 'pinned'; key: string; stats: Stats }
-  | { kind: 'group'; key: string; group: Group; depth: 0 | 1; stats: Stats; vehicle: Vehicle | null }
+  /** open: 中身を出しているか（絞り込み中は折りたたんでいても該当するタスクを出す） */
+  | { kind: 'group'; key: string; group: Group; depth: 0 | 1; stats: Stats; vehicle: Vehicle | null; open: boolean }
   | { kind: 'task'; key: string; task: Task; depth: 0 | 1 | 2; container: string; vehicle: Vehicle | null };
 
-export type StatusFilter = 'all' | 'open' | 'done' | 'overdue' | 'today' | 'week';
+export type StatusFilter = 'all' | 'open' | 'done' | 'overdue' | 'today' | 'week' | 'urgent';
 
 export interface ViewOpts {
   vehicle: ID | 'all';
@@ -72,6 +74,8 @@ export function matchStatus(t: Task, f: StatusFilter, today: DateStr): boolean {
       return isTodayTask(t, today);
     case 'week':
       return !t.done && inWeek(t, today);
+    case 'urgent':
+      return priorityOf(t, today).level >= 3;
   }
 }
 
@@ -86,10 +90,11 @@ export function matchQuery(t: Task, q: string, groupName: string, vehicleName: s
     .every((w) => hay.includes(w));
 }
 
-/** 同じ container 内のタスクの並び（手動 = order、期限順 = 期限→開始→order） */
-export function sortTasks(list: Task[], mode: SortMode): Task[] {
+/** 同じ container 内のタスクの並び（手動 = order、期限順 = 期限→開始→order、優先順 = 優先度→余裕→期限） */
+export function sortTasks(list: Task[], mode: SortMode, today: DateStr = todayStr()): Task[] {
   const a = [...list];
   if (mode === 'manual') return a.sort((x, y) => x.order - y.order || x.createdAt - y.createdAt);
+  if (mode === 'priority') return a.sort(comparePriority(today));
   const k = (d: DateStr | null) => (d ? toDay(d) : Number.MAX_SAFE_INTEGER);
   return a.sort((x, y) => k(x.due) - k(y.due) || k(x.start) - k(y.start) || x.order - y.order || x.createdAt - y.createdAt);
 }
@@ -123,7 +128,7 @@ export function tasksUnder(data: AppData, groupId: ID): Task[] {
 
 /**
  * 表示する行を作る。絞り込み中は該当するタスクがないグループを出さない（空の枠を並べない）。
- * 折りたたんだグループは見出しだけ。
+ * 折りたたんだグループは見出しだけ（絞り込み中は、該当するタスクを折りたたみに関係なく出す）。
  */
 export function buildRows(data: AppData, o: ViewOpts): Row[] {
   const vById = new Map(data.vehicles.map((v) => [v.id, v]));
@@ -145,7 +150,7 @@ export function buildRows(data: AppData, o: ViewOpts): Row[] {
     if (!byContainer.has(k)) byContainer.set(k, []);
     byContainer.get(k)!.push(t);
   }
-  const tasksOf = (k: string) => sortTasks(byContainer.get(k) ?? [], o.sortMode);
+  const tasksOf = (k: string) => sortTasks(byContainer.get(k) ?? [], o.sortMode, o.today);
   const allUnder = (gid: ID) => tasksUnder(data, gid).filter(visible);
 
   const rows: Row[] = [];
@@ -153,14 +158,16 @@ export function buildRows(data: AppData, o: ViewOpts): Row[] {
     const under = allUnder(g.id);
     const kids = sortGroups(data.groups.filter((x) => x.parentId === g.id));
     if (filtering && under.length === 0) return;
-    rows.push({ kind: 'group', key: `g:${g.id}`, group: g, depth: 0, stats: statsOf(under, o.today), vehicle });
-    if (g.collapsed) return;
+    const open = !g.collapsed || filtering;
+    rows.push({ kind: 'group', key: `g:${g.id}`, group: g, depth: 0, stats: statsOf(under, o.today), vehicle, open });
+    if (!open) return;
     for (const t of tasksOf(`g:${g.id}`)) rows.push({ kind: 'task', key: t.id, task: t, depth: 1, container: `g:${g.id}`, vehicle });
     for (const c of kids) {
       const cu = tasksOf(`g:${c.id}`);
       if (filtering && cu.length === 0) continue;
-      rows.push({ kind: 'group', key: `g:${c.id}`, group: c, depth: 1, stats: statsOf(cu, o.today), vehicle });
-      if (c.collapsed) continue;
+      const copen = !c.collapsed || filtering;
+      rows.push({ kind: 'group', key: `g:${c.id}`, group: c, depth: 1, stats: statsOf(cu, o.today), vehicle, open: copen });
+      if (!copen) continue;
       for (const t of cu) rows.push({ kind: 'task', key: t.id, task: t, depth: 2, container: `g:${c.id}`, vehicle });
     }
   };
@@ -194,10 +201,9 @@ export function buildRows(data: AppData, o: ViewOpts): Row[] {
   return rows;
 }
 
-/** 今日のタスク（期限切れ → 期限の近い順）。除外したものは別に返す */
+/** 今日のタスク（優先度の高い順。同じなら余裕の少ない順 → 期限の近い順）。除外したものは別に返す */
 export function todayList(data: AppData, today: DateStr): { list: Task[]; hidden: Task[] } {
-  const k = (d: DateStr | null) => (d ? toDay(d) : Number.MAX_SAFE_INTEGER);
-  const cands = data.tasks.filter((t) => isTodayTask(t, today)).sort((a, b) => k(a.due) - k(b.due) || a.order - b.order);
+  const cands = data.tasks.filter((t) => isTodayTask(t, today)).sort(comparePriority(today));
   return { list: cands.filter((t) => !t.hiddenOn.includes(today)), hidden: cands.filter((t) => t.hiddenOn.includes(today)) };
 }
 

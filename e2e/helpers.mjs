@@ -101,3 +101,47 @@ export function layoutReport(page) {
 
 /** 保存が終わるまで待つ */
 export const saved = (page) => page.waitForSelector('.save-dot[data-s="saved"]', { timeout: 5000 });
+
+/** グループを開く（一覧: 見出しの ▼、ガント: グループの行）。1つずつ開く設定なら、ほかは閉じる */
+export async function openGroup(page, name) {
+  const head = page.locator('.pane:not(.out) .grow-head', { hasText: name }).first();
+  if (await head.count()) {
+    if ((await head.locator('.fold').getAttribute('aria-expanded')) === 'false') await head.locator('.fold').click();
+  } else {
+    const row = page.locator('.pane:not(.out) .gline[data-level]', { hasText: name }).first();
+    if ((await row.getAttribute('aria-expanded')) === 'false') await row.click();
+  }
+  await page.waitForTimeout(450);
+}
+
+/** 「グループは1つずつ開く」をオフにして、すべてのグループを開く */
+export async function openAllGroups(page) {
+  await tab(page, 'settings');
+  const t = page.locator('button[aria-label="グループは1つずつ開く"]');
+  if ((await t.getAttribute('aria-checked')) === 'true') await t.click();
+  await tab(page, 'tasks');
+  for (let i = 0; i < 20; i++) {
+    const closed = page.locator('.pane:not(.out) .grow-head .fold[aria-expanded="false"]');
+    if (!(await closed.count())) break;
+    await closed.first().click();
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(300);
+}
+
+/** その行が見えるまで ▲▼ で送る（縦スワイプは使えないので） */
+export async function showRow(page, locator) {
+  for (let i = 0; i < 12; i++) {
+    const pos = await locator.evaluate((el) => {
+      const v = el.closest('[data-paged]');
+      const r = el.getBoundingClientRect();
+      const vr = v.getBoundingClientRect();
+      const head = v.querySelector('.ghead')?.getBoundingClientRect().height ?? 0;
+      return r.top < vr.top + head - 1 ? 'up' : r.bottom > vr.bottom + 1 ? 'down' : 'ok';
+    });
+    if (pos === 'ok') return;
+    await page.locator(`.pane:not(.out) .pager button[aria-label="${pos === 'up' ? '前の画面へ' : '次の画面へ'}"]`).first().click();
+    await page.waitForTimeout(450);
+  }
+  throw new Error('行が見えるところまで送れない');
+}

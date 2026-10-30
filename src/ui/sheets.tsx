@@ -14,6 +14,7 @@ import {
   moveCheckItem,
   moveGroup,
   renameChecklist,
+  setGroupOpen,
   setSettings,
   updateEvent,
   updateGroup,
@@ -27,7 +28,9 @@ import { VEHICLE_COLORS } from '../model/schema';
 import { search } from '../model/search';
 import type { CalEvent, Priority } from '../model/types';
 import { closeSheet, commit, openSheet, setTab, setUI, toast, useData, useUI } from '../store/store';
-import { Field, PRIORITY, Reveal, Seg, TextInput, Toggle } from './components/bits';
+import { AutoArea, Field, PrioBadge, Reveal, Seg, TextInput, Toggle } from './components/bits';
+import { revealIn } from './components/Pager';
+import { priorityOf, PRIORITY_CHOICES } from '../model/priority';
 import { Sheet } from './components/Sheet';
 import { Icon } from './icons';
 
@@ -53,6 +56,7 @@ export function TaskSheet({ props, closing }: SheetProps) {
   const vGroups = groups.filter((g) => g.vehicleId === t.vehicleId);
   const parents = vGroups.filter((g) => !g.parentId).sort((a, b) => a.order - b.order);
   const n = t.start && t.due ? workdays(t.start, t.due, t.weekendWork) : 0;
+  const pr = priorityOf(t, today());
   return (
     <Sheet
       title={t.title || 'タスク'}
@@ -86,6 +90,15 @@ export function TaskSheet({ props, closing }: SheetProps) {
         <input type="range" min={0} max={100} step={10} value={t.progress} aria-label="進捗" style={{ accentColor: 'var(--green)' }} onInput={(e: Event) => up({ progress: Number((e.target as HTMLInputElement).value) })} />
       </Field>
       <Toggle label="土日も作業する" hint="オフのときは土日を作業日に含めず、ガントのバーも土日を空けます" value={t.weekendWork} onChange={(v) => up({ weekendWork: v })} />
+      <Field label="優先度">
+        <Seg value={String(t.priority)} onChange={(v) => up({ priority: Number(v) as Priority })} options={PRIORITY_CHOICES.map((p) => ({ value: String(p.v), label: p.label }))} label="優先度" />
+      </Field>
+      {!t.done && (
+        <div className="pri-why" data-testid="priority-why">
+          <PrioBadge info={pr} />
+          <span>{pr.auto ? `自動: ${pr.reason}` : pr.reason}</span>
+        </div>
+      )}
       {!more ? (
         <button type="button" className="btn ghost" onClick={() => setMore(true)}>
           <Icon name="down" size={16} />
@@ -93,9 +106,6 @@ export function TaskSheet({ props, closing }: SheetProps) {
         </button>
       ) : (
         <>
-          <Field label="優先度">
-            <Seg value={String(t.priority)} onChange={(v) => up({ priority: Number(v) as Priority })} options={PRIORITY.map((p) => ({ value: String(p.v), label: p.label }))} label="優先度" />
-          </Field>
           <div className="grid2">
             <Field label="車種">
               <select className="inp" value={t.vehicleId ?? ''} onChange={(e: Event) => up({ vehicleId: (e.target as HTMLSelectElement).value || null })}>
@@ -348,6 +358,7 @@ const STATUS: { v: StatusFilter; label: string }[] = [
   { v: 'overdue', label: '期限超過' },
   { v: 'today', label: '今日' },
   { v: 'week', label: '今週' },
+  { v: 'urgent', label: '至急・高' },
 ];
 
 export function FilterSheet({ closing }: SheetProps) {
@@ -402,8 +413,7 @@ export function FilterSheet({ closing }: SheetProps) {
 
 /* ---------- グループへ移動（目次） ---------- */
 export function jumpTo(groupId: string) {
-  const el = document.querySelector<HTMLElement>(`[data-group-anchor="${groupId}"]`);
-  el?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  revealIn(document.querySelector<HTMLElement>(`[data-group-anchor="${groupId}"]`));
   setUI({ selected: `g:${groupId}` });
 }
 
@@ -439,7 +449,7 @@ export function JumpSheet({ closing }: SheetProps) {
                 onClick={() => {
                   closeSheet();
                   // 閉じてから移動（折りたたみを開く）
-                  commit((d) => updateGroup(d, x.id, { collapsed: false }), { undoable: false });
+                  commit((d) => setGroupOpen(d, x.id, true), { undoable: false });
                   setTimeout(() => jumpTo(x.id), 60);
                 }}
               >
@@ -482,7 +492,7 @@ export function SearchSheet({ closing }: SheetProps) {
           style={{ borderRadius: 'var(--r)' }}
           onClick={() => {
             closeSheet();
-            commit((d) => updateGroup(setSettings(d, { vehicle: g.vehicleId ?? 'all' }), g.parentId ?? g.id, { collapsed: false }), { undoable: false });
+            commit((d) => setGroupOpen(setSettings(d, { vehicle: g.vehicleId ?? 'all' }), g.id, true), { undoable: false });
             setUI({ tasksView: 'tasks', status: 'all', query: '', assignee: null });
             setTab('tasks');
             setTimeout(() => jumpTo(g.id), 300);
@@ -537,7 +547,7 @@ export function EventSheet({ props, closing }: SheetProps) {
   const text = (k: 'title' | 'place' | 'memo', label: string, ph: string, multi = false) =>
     isNew ? (
       multi ? (
-        <textarea className="inp" rows={2} value={(v[k] as string) ?? ''} placeholder={ph} aria-label={label} onInput={(e: Event) => set({ [k]: (e.target as HTMLTextAreaElement).value })} />
+        <AutoArea className="inp" value={(v[k] as string) ?? ''} placeholder={ph} aria-label={label} onInput={(e: Event) => set({ [k]: (e.target as HTMLTextAreaElement).value })} />
       ) : (
         <input className="inp" value={(v[k] as string) ?? ''} placeholder={ph} aria-label={label} autoFocus={k === 'title'} onInput={(e: Event) => set({ [k]: (e.target as HTMLInputElement).value })} />
       )

@@ -266,11 +266,14 @@ describe('PWA・オフライン', () => {
     await page.reload();
     await page.waitForFunction(() => navigator.serviceWorker.controller != null, null, { timeout: 10000 });
     await saved(page);
+    await tab(page, 'tasks');
+    const online = await listTitles(page);
     await ctx.setOffline(true);
     await page.reload();
     await page.waitForSelector('nav.nav');
     await tab(page, 'tasks');
-    assert.ok((await listTitles(page)).length >= 10, 'オフラインでもタスクが出る');
+    assert.ok(online.length >= 5);
+    assert.deepEqual(await listTitles(page), online, 'オフラインでもタスクが出る');
     // オフラインでも追加できる
     await page.fill('.quick .inp', 'オフラインで追加');
     await page.press('.quick .inp', 'Enter');

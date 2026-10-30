@@ -1,11 +1,12 @@
 import React, { useRef } from 'react';
-import { setSettings, setSortMode } from '../../model/actions';
+import { setSettings } from '../../model/actions';
 import { commit, useData } from '../../store/store';
 import { Seg } from '../components/bits';
 import { VehicleChips } from '../components/VehicleChips';
 import { Gantt } from '../gantt/Gantt';
 import { Icon } from '../icons';
 import { useRows } from '../view';
+import { SortChip } from './Tasks';
 
 export function GanttScreen() {
   const rows = useRows();
@@ -19,10 +20,7 @@ export function GanttScreen() {
         <div className="zoom">
           <Seg value={zoom} onChange={(v) => commit((d) => setSettings(d, { ganttZoom: v }), { undoable: false })} options={[{ value: 'day', label: '日' }, { value: 'week', label: '週' }, { value: 'month', label: '月' }]} label="表示の単位" />
         </div>
-        <button type="button" className="chip" aria-pressed="false" onClick={() => commit((d) => setSortMode(d, sortMode === 'manual' ? 'due' : 'manual'), { undoable: false })} aria-label={`並び順: ${sortMode === 'manual' ? '手動' : '期限順'}`}>
-          <Icon name="sort" size={14} />
-          <span>{sortMode === 'manual' ? '手動' : '期限順'}</span>
-        </button>
+        <SortChip mode={sortMode} />
         <span className="grow" />
         <button type="button" className="iconbtn step" aria-label="前へ" onClick={() => api.current?.('prev')}>
           <Icon name="left" />

@@ -15,9 +15,12 @@ import { reorder, setDone, setTaskRange } from '../../model/actions';
 import { addDays, diffDays, fromDay, isWeekend, monthOf, resizeEnd, resizeStart, shiftRange, shortDate, startOfWeek, toDay, today, workdays, workRuns } from '../../model/dates';
 import type { Row } from '../../model/rows';
 import type { GanttZoom, Task } from '../../model/types';
+import { priorityOf } from '../../model/priority';
 import { commit, openSheet, setUI, toast, useData, useUI } from '../../store/store';
-import { Reveal } from '../components/bits';
-import { useFlip } from '../components/TaskList';
+import { PrioBadge, Reveal } from '../components/bits';
+import { PagerBar, usePager } from '../components/Pager';
+import { toggleGroup, useFlip } from '../components/TaskList';
+import { Icon } from '../icons';
 import { attachSortable } from '../drag/sortable';
 import { attachBarDrag } from './barDrag';
 
@@ -35,9 +38,9 @@ export interface GanttGeom {
   rowH: number;
 }
 
-/** 表示する日付の範囲（今日の2週間前から、最後の期限の3週間後まで。最低90日） */
+/** 表示する日付の範囲（今日の8週間前から、最後の期限の3週間後まで。最低90日先まで） */
 export function ganttRange(rows: Row[], day: string): { from: string; days: number } {
-  let a = toDay(day) - 14;
+  let a = toDay(day) - 56;
   let b = toDay(day) + 90;
   for (const r of rows) {
     if (r.kind !== 'task') continue;
@@ -148,6 +151,8 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   }, [size.w > 0]);
 
   useFlip(body);
+  const headH = HEAD_REM * rootPx();
+  const pager = usePager(scroller, size.w > 0, { item: '.gline[data-sort-key]', stops: '.gline', top: () => headH });
 
   const months = useMemo(() => {
     const out: { left: number; label: string }[] = [];
@@ -170,9 +175,9 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   }, [geom.from, geom.days]);
 
   const vColor = useMemo(() => new Map(vehicles.map((v) => [v.id, v.color])), [vehicles]);
-  const headH = HEAD_REM * rootPx();
 
   return (
+    <>
     <div className="gantt" ref={box} style={{ ['--row' as string]: `${geom.rowH}px` }}>
       {size.w > 0 && (
         <div className="gscroll" ref={scroller} data-testid="gantt-scroll">
@@ -218,6 +223,8 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
         </div>
       )}
     </div>
+    <PagerBar p={pager} />
+    </>
   );
 }
 
@@ -226,7 +233,7 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
   const trackW = `${geom.days * geom.dayW}px`;
   if (r.kind === 'vehicle' || r.kind === 'pinned') {
     return (
-      <div className="gline" data-flip={r.key} style={{ height: h }}>
+      <div className="gline" data-flip={r.key} data-level={0} style={{ height: h }}>
         <div className="gname v" style={{ width: `${geom.nameW}px`, height: h }}>
           <span style={{ width: '0.25rem', height: '0.875rem', borderRadius: 2, background: r.kind === 'pinned' ? 'var(--navy)' : r.vehicle?.color ?? 'var(--gray)', flex: 'none' }} />
           <Reveal text={r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし'} />
@@ -240,8 +247,20 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
     const left = s.start ? diffDays(geom.from, s.start) * geom.dayW : 0;
     const w = s.start && s.end ? (diffDays(s.start, s.end) + 1) * geom.dayW : 0;
     return (
-      <div className="gline" data-flip={r.key} style={{ height: h }} aria-selected={selected ? 'true' : 'false'} onClick={() => setUI({ selected: r.key })}>
+      <div
+        className="gline"
+        data-flip={r.key}
+        data-level={r.depth + 1}
+        data-group-anchor={r.group.id}
+        style={{ height: h }}
+        aria-selected={selected ? 'true' : 'false'}
+        aria-expanded={r.open ? 'true' : 'false'}
+        onClick={(e: MouseEvent) => r.open === !r.group.collapsed && toggleGroup(r.group.id, r.group.collapsed, e.currentTarget as Element)}
+      >
         <div className={`gname g${r.depth}`} style={{ width: `${geom.nameW}px`, height: h }}>
+          <span className="gfold" aria-hidden="true">
+            <Icon name="down" size={12} />
+          </span>
           <Reveal text={r.group.name} />
           <span className="num micro" style={{ marginLeft: 'auto', flex: 'none' }}>
             {s.done}/{s.total}
@@ -277,6 +296,7 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
             commit((d) => setDone(d, t.id, !t.done), { toast: !t.done ? `「${t.title}」を完了` : undefined });
           }}
         />
+        <PrioBadge info={priorityOf(t, day)} compact />
         <Reveal text={t.title || '無題'} />
       </div>
       <div className="gtrack" style={{ width: trackW, height: h }}>

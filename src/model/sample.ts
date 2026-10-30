@@ -1,5 +1,5 @@
 /** 試しに使うためのサンプル（設定から入れる）。今日を基準に日付を作る */
-import { addChecklist, addEvent, addGroup, addTask, addVehicle } from './actions';
+import { addChecklist, addEvent, addGroup, addTask, addVehicle, setGroupOpen } from './actions';
 import { addWorkdays, today } from './dates';
 import { emptyData } from './schema';
 import type { AppData } from './types';
@@ -40,8 +40,11 @@ export function sampleData(day: string = today()): AppData {
     ['週報の提出', null, null, 0, 1, 0, ''],
   ];
   tasks.forEach(([title, gid, vid, s, len, prog, who], i) => {
-    d = addTask(d, { title, groupId: gid, vehicleId: vid, start: w(s), due: w(s + len - 1), progress: prog, done: prog === 100, assignee: who, priority: (i % 4) as 0 | 1 | 2 | 3 }).data;
+    // 優先度は「自動」。原価の見積もりだけ手動で「高」
+    d = addTask(d, { title, groupId: gid, vehicleId: vid, start: w(s), due: w(s + len - 1), progress: prog, done: prog === 100, assignee: who, priority: i === 13 ? 3 : 0 }).data;
   });
+  // 最初はボデー設計 ／ フロント周りを開いておく（グループは1つずつ開く）
+  d = setGroupOpen(d, c1.group.id, true);
   d = addEvent(d, { title: '設計レビュー', date: w(1), startTime: '10:00', endTime: '11:30', place: '第2会議室', vehicleId: v1.vehicle.id }).data;
   d = addEvent(d, { title: '朝会', date: day, startTime: '08:45', endTime: '09:00', repeat: 'weekdays' }).data;
   d = addEvent(d, { title: '金型メーカー打ち合わせ', date: w(3), startTime: '14:00', endTime: '15:00', place: 'オンライン', vehicleId: v2.vehicle.id }).data;

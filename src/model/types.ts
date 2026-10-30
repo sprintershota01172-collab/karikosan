@@ -27,7 +27,8 @@ export interface Group {
   collapsed: boolean;
 }
 
-export type Priority = 0 | 1 | 2 | 3;
+/** 0 = 自動（期限・進捗から判断）、1 低 / 2 中 / 3 高 / 4 至急 = 手動 */
+export type Priority = 0 | 1 | 2 | 3 | 4;
 
 export interface Task {
   id: ID;
@@ -86,7 +87,7 @@ export interface Checklist {
   items: CheckItem[];
 }
 
-export type SortMode = 'manual' | 'due';
+export type SortMode = 'manual' | 'due' | 'priority';
 export type GanttZoom = 'day' | 'week' | 'month';
 
 export interface Settings {
@@ -97,6 +98,8 @@ export interface Settings {
   /** 表示中の車種（'all' = すべて） */
   vehicle: ID | 'all';
   ganttZoom: GanttZoom;
+  /** グループは1つずつ開く（開くとほかのグループを閉じ、1画面に収める） */
+  oneGroup: boolean;
 }
 
 export interface AppData {

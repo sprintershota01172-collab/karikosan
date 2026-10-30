@@ -154,7 +154,8 @@ describe('今日のタスク', () => {
     d = A.addTask(d, { title: '今日', due: DAY }).data;
     d = A.addTask(d, { title: '期間中', start: '2026-10-29', due: '2026-11-03' }).data;
     d = A.addTask(d, { title: '来週', start: '2026-11-04', due: '2026-11-05' }).data;
-    assert.deepEqual(todayList(d, DAY).list.map((t) => t.title), ['期限切れ', '今日', '期間中']);
+    // 優先度の高い順: 期限切れ（2日過ぎ）→ 期間中（着手が1日遅れ: 作業日4日に対して残り3日）→ 今日が期限（1日の作業に1日）
+    assert.deepEqual(todayList(d, DAY).list.map((t) => t.title), ['期限切れ', '期間中', '今日']);
     const id = d.tasks[1].id;
     d = A.hideToday(d, id, DAY);
     assert.deepEqual(todayList(d, DAY).list.map((t) => t.title), ['期限切れ', '期間中']);

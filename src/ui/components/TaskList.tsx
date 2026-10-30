@@ -4,14 +4,16 @@
  */
 import React, { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { reorder, setDone, updateGroup } from '../../model/actions';
+import { reorder, setDone, setGroupOpen } from '../../model/actions';
 import { shortDate, toDay, today } from '../../model/dates';
+import { priorityOf } from '../../model/priority';
 import { isOverdue, type Row } from '../../model/rows';
 import type { Task } from '../../model/types';
 import { commit, openSheet, setUI, toast, useUI } from '../../store/store';
 import { attachSortable } from '../drag/sortable';
 import { Icon } from '../icons';
-import { Check, PRIORITY, Reveal, Ring } from './bits';
+import { Check, PrioBadge, Reveal, Ring } from './bits';
+import { PagerBar, revealIn, usePager } from './Pager';
 
 export function dueLabel(t: Task, day = today()) {
   if (!t.due) return { text: '', cls: '' };
@@ -22,6 +24,12 @@ export function dueLabel(t: Task, day = today()) {
   return { text: shortDate(t.due, false), cls: '' };
 }
 
+/** グループを開く・閉じる。開いたときは、そのグループが画面に収まるように送る */
+export function toggleGroup(id: string, open: boolean, anchor: Element | null) {
+  commit((d) => setGroupOpen(d, id, open), { undoable: false });
+  if (open) requestAnimationFrame(() => requestAnimationFrame(() => revealIn(anchor)));
+}
+
 export function completeTask(t: Task, done: boolean) {
   commit((d) => setDone(d, t.id, done), { toast: done ? `「${t.title || '無題'}」を完了` : undefined, undoable: true });
 }
@@ -29,7 +37,7 @@ export function completeTask(t: Task, done: boolean) {
 export const TaskRow = memo(function TaskRow({ t, depth, container, selected, color }: { t: Task; depth: number; container: string; selected: boolean; color: string }) {
   const due = dueLabel(t);
   const [pop, setPop] = useState(false);
-  const pr = PRIORITY[t.priority];
+  const pr = priorityOf(t, today());
   return (
     <div
       className={`trow${t.done ? ' done' : ''}${pop ? ' just-done' : ''}`}
@@ -37,6 +45,7 @@ export const TaskRow = memo(function TaskRow({ t, depth, container, selected, co
       data-sort-key={t.id}
       data-sort-group={container}
       data-flip={t.id}
+      data-pager-item
       aria-selected={selected ? 'true' : 'false'}
       onClick={() => (selected ? openSheet('task', { id: t.id }) : setUI({ selected: t.id }))}
     >
@@ -50,7 +59,7 @@ export const TaskRow = memo(function TaskRow({ t, depth, container, selected, co
         }}
       />
       <div className="title">
-        {t.priority > 0 && <span className="prio" style={{ background: pr.color }} aria-label={`優先度 ${pr.label}`} />}
+        <PrioBadge info={pr} />
         <Reveal text={t.title || '無題'} />
       </div>
       <div className="meta">
@@ -77,8 +86,20 @@ function GroupHead({ r, selected }: { r: Extract<Row, { kind: 'group' }>; select
   const g = r.group;
   const child = r.depth === 1;
   return (
-    <div className={`grow-head${child ? ' child' : ''}`} data-flip={r.key} data-group-anchor={g.id} aria-selected={selected ? 'true' : 'false'} style={selected ? { background: 'var(--green-soft)' } : undefined} onClick={() => setUI({ selected: r.key })}>
-      <button type="button" className="fold" aria-expanded={g.collapsed ? 'false' : 'true'} aria-label={g.collapsed ? '開く' : 'たたむ'} onClick={(e: MouseEvent) => (e.stopPropagation(), commit((d) => updateGroup(d, g.id, { collapsed: !g.collapsed }), { undoable: false }))}>
+    <div
+      className={`grow-head${child ? ' child' : ''}`}
+      data-flip={r.key}
+      data-group-anchor={g.id}
+      data-level={child ? 2 : 1}
+      aria-selected={selected ? 'true' : 'false'}
+      style={selected ? { background: 'var(--green-soft)' } : undefined}
+      onClick={(e: MouseEvent) => {
+        // 閉じているグループは、見出しのタップで開く（選んで、開く）
+        setUI({ selected: r.key });
+        if (!r.open) toggleGroup(g.id, true, e.currentTarget as Element);
+      }}
+    >
+      <button type="button" className="fold" aria-expanded={r.open ? 'true' : 'false'} aria-label={r.open ? 'たたむ' : '開く'} disabled={r.open && g.collapsed /* 絞り込み中は折りたたみに関係なく出している */} onClick={(e: MouseEvent) => (e.stopPropagation(), toggleGroup(g.id, g.collapsed, (e.currentTarget as Element).closest('.grow-head')))}>
         <Icon name="down" size={16} />
       </button>
       {g.pinned && <Icon name="pin" size={14} className="pinned" />}
@@ -111,22 +132,24 @@ export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | 
           switched = r.switched;
           return r.data;
         });
-        if (switched) toast('手動の並びに切り替えました（期限順は並び順のボタンで戻せます）');
+        if (switched) toast('手動の並びに切り替えました（期限順・優先順は並び順のボタンで戻せます）');
       },
     });
   }, []);
 
   useFlip(root);
+  const pager = usePager(scroller, true, { item: '[data-pager-item]', stops: '.list > *' });
 
   // 一覧の外（余白）をタップしたら選択を外す
   return (
+    <>
     <div className="scroll" ref={scroller} onClick={(e: MouseEvent) => e.target === e.currentTarget && setUI({ selected: null })}>
       <div className="list" ref={root}>
         {rows.length === 0 && empty}
         {rows.map((r) => {
           if (r.kind === 'vehicle' || r.kind === 'pinned')
             return (
-              <div key={r.key} className="vrow" data-flip={r.key}>
+              <div key={r.key} className="vrow" data-flip={r.key} data-level={0}>
                 <span className="bar" style={{ background: r.kind === 'pinned' ? 'var(--navy)' : r.vehicle?.color ?? 'var(--gray)' }} />
                 <span className="ellipsis grow">{r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし'}</span>
                 <span className="num micro">
@@ -137,9 +160,10 @@ export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | 
           if (r.kind === 'group') return <GroupHead key={r.key} r={r} selected={selected === r.key} />;
           return <TaskRow key={r.key} t={r.task} depth={r.depth} container={r.container} selected={selected === r.task.id} color={r.vehicle?.color ?? 'var(--green)'} />;
         })}
-        <div style={{ height: '3rem' }} />
       </div>
     </div>
+    <PagerBar p={pager} />
+    </>
   );
 }
 

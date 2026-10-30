@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { LEVEL, type PriorityInfo } from '../../model/priority';
 import { Icon } from '../icons';
 
 /** 1行で省略表示。PC ではホバーしたときだけ横に流して全文を見せる */
@@ -102,7 +103,7 @@ export function TextInput({ value, onCommit, placeholder, autoFocus, multiline, 
     onBlur: commitV,
   };
   return multiline ? (
-    <textarea {...common} rows={3} />
+    <AutoArea {...common} />
   ) : (
     <input
       {...common}
@@ -117,6 +118,19 @@ export function TextInput({ value, onCommit, placeholder, autoFocus, multiline, 
   );
 }
 
+/** 中身に合わせて高さが伸びる入力欄（中でスクロールさせない。縦スワイプを使わないため） */
+export function AutoArea(p: Record<string, unknown> & { value: string }) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const fit = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 2}px`;
+  };
+  useLayoutEffect(fit, [p.value]);
+  return <textarea {...p} ref={ref} rows={2} onInput={(e: Event) => ((p.onInput as ((e: Event) => void) | undefined)?.(e), fit())} />;
+}
+
 /** 完了率の小さな円 */
 export function Ring({ value, size = 18, color = 'var(--green)' }: { value: number; size?: number; color?: string }) {
   const r = size / 2 - 2;
@@ -129,9 +143,13 @@ export function Ring({ value, size = 18, color = 'var(--green)' }: { value: numb
   );
 }
 
-export const PRIORITY = [
-  { v: 0, label: 'なし', color: 'transparent' },
-  { v: 1, label: '低', color: '#9299A3' },
-  { v: 2, label: '中', color: '#B7791F' },
-  { v: 3, label: '高', color: '#C8443A' },
-] as const;
+/** 優先度の印（至急 = 赤地、高 = 赤字、中 = 黄土、低 = 灰の枠）。compact は1文字（ガントの名前の列） */
+export function PrioBadge({ info, compact }: { info: PriorityInfo; compact?: boolean }) {
+  if (!info.level) return null;
+  const l = LEVEL[info.level];
+  return (
+    <span className={`pri p${info.level}${compact ? ' c' : ''}`} aria-label={`優先度 ${l.label}${info.auto ? '（自動）' : ''}`} title={info.reason}>
+      {compact ? l.short : l.label}
+    </span>
+  );
+}

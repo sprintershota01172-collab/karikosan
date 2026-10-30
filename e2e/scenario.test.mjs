@@ -1,7 +1,8 @@
-// 重点シナリオ: 20件 → 連続で並べ替え → ガントで期限変更 → 期限順で自動整列 → 高速スクロール → 画面の連続切り替え → 再起動
+// 重点シナリオ: 20件 → 連続で並べ替え → ガントで期限変更 → 期限順で自動整列 → 高速で送る → 画面の連続切り替え → 再起動
+// 20件すべてが並ぶように「グループは1つずつ開く」をオフにして全部開く（1画面に収まらないので ▲▼ で送る）
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, saved, setup, tab, teardown, touchDrag } from './helpers.mjs';
+import { errors, ganttTitles, listTitles, open, openAllGroups, saved, setup, showRow, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -10,7 +11,7 @@ describe('重点シナリオ（iPhone の画面サイズ・タッチ操作）', 
   it('ガントと一覧がずれず、ドラッグで振動せず、データが失われない', async () => {
     const { ctx, page } = await open('iphone');
     // 1. タスクを20件にする（サンプル15件 + 5件）
-    await tab(page, 'tasks');
+    await openAllGroups(page);
     await page.locator('.grow-head', { hasText: 'リア周り' }).click();
     for (let i = 1; i <= 5; i++) {
       await page.fill('.quick .inp', `追加${i}`);
@@ -22,6 +23,8 @@ describe('重点シナリオ（iPhone の画面サイズ・タッチ操作）', 
     // 2. 連続で並べ替え（毎回、ずらした行の数が単調に増えること = 往復しない）
     const sample = () => page.$$eval('.trow[data-sort-key]', (els) => els.filter((e) => !e.classList.contains('lifted') && e.style.transform && !/, 0px/.test(e.style.transform)).length);
     for (const [from, to] of [['追加1', '追加4'], ['追加5', 'テールランプ配置'], ['リアゲート構造の見直し', '追加3']]) {
+      await showRow(page, page.locator('.trow', { hasText: from }));
+      await showRow(page, page.locator('.trow', { hasText: to }));
       const a = await page.locator('.trow', { hasText: from }).boundingBox();
       const b = await page.locator('.trow', { hasText: to }).boundingBox();
       const down = b.y > a.y;
@@ -38,6 +41,7 @@ describe('重点シナリオ（iPhone の画面サイズ・タッチ操作）', 
     assert.deepEqual(await ganttTitles(page), manual, 'ガントと一覧は同じ順');
     const w = await page.evaluate(() => 1.75 * parseFloat(getComputedStyle(document.documentElement).fontSize));
     const bar = page.locator('.gline', { hasText: 'ヘッドランプ取付検討' }).locator('.gbar');
+    await showRow(page, page.locator('.gline', { hasText: 'ヘッドランプ取付検討' }));
     const s0 = await bar.getAttribute('data-start');
     const bb = await bar.boundingBox();
     const x = Math.max(bb.x + 8, 160);
@@ -51,7 +55,15 @@ describe('重点シナリオ（iPhone の画面サイズ・タッチ操作）', 
     assert.notDeepEqual(due, manual);
     assert.ok(due.indexOf('ヘッドランプ取付検討') < due.indexOf('バンパー形状の検討'), '早くした期限が上へ');
 
-    // 5. 高速スクロール（名前とバーがずれない）
+    // 5. 高速で送る（▲▼ を連打）・スクロール位置を飛ばす。名前とバーがずれない
+    const pg = (l) => page.locator(`.pane:not(.out) .pager button[aria-label="${l}"]`);
+    for (const l of ['前の画面へ', '次の画面へ', '前の画面へ']) {
+      for (let i = 0; i < 6 && !(await pg(l).isDisabled()); i++) {
+        await pg(l).click();
+        await page.waitForTimeout(40);
+      }
+      await page.waitForTimeout(500);
+    }
     const drift = await page.evaluate(async () => {
       const sc = document.querySelector('.gscroll');
       let m = 0;
