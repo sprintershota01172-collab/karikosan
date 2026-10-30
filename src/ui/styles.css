@@ -85,6 +85,7 @@ input, textarea, select { font-size: max(1rem, 16px); } /* iPhone の自動拡�
   height: var(--app-h, 100dvh);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
   overflow: hidden;
@@ -128,7 +129,7 @@ input, textarea, select { font-size: max(1rem, 16px); } /* iPhone の自動拡�
 
 .nav {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   height: calc(var(--nav) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface);
@@ -138,7 +139,8 @@ input, textarea, select { font-size: max(1rem, 16px); } /* iPhone の自動拡�
 .kb-open .nav { display: none; }
 .kb-open .toast { bottom: 4.5rem; }
 .nav button { border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.15rem; font-size: 0.7rem; color: var(--ink-3); position: relative; }
-.nav button .ic { padding: 0.15rem 0.9rem; box-sizing: content-box; border-radius: 999px; transition: background var(--t-fast), color var(--t-fast); }
+.nav button { min-width: 0; overflow: hidden; }
+.nav button .ic { padding: 0.15rem 0.75rem; box-sizing: content-box; border-radius: 999px; transition: background var(--t-fast), color var(--t-fast); }
 .nav button[aria-current='page'] { color: var(--green); font-weight: 700; }
 .nav button[aria-current='page'] .ic { background: var(--green-tint); }
 
@@ -448,3 +450,43 @@ kbd { font-family: var(--num); font-size: 0.75rem; padding: 0 0.25rem; border: 1
 /* 通知は下の操作のじゃまをしない（ボタンだけ押せる） */
 .toast { pointer-events: none; }
 .toast button { pointer-events: auto; }
+
+/* ---------- 大日程（1マス = 1週） ---------- */
+.plan .pcorner { flex-direction: column; align-items: flex-start; justify-content: space-between; padding: 0.3rem 0.5rem 0; }
+.plan .pcorner .lname { height: 1.625rem; display: flex; align-items: center; font-weight: 700; color: var(--ink-2); }
+.pweek { height: 1.375rem; font-size: 0.68rem; }
+.pweek.now { color: #fff; font-weight: 700; background: var(--green); border-radius: 0.375rem; }
+/* 週ごとの負荷: 色の濃さと数字 */
+.gload { position: absolute; bottom: 0; height: 1.625rem; display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; border-left: 1px solid var(--grid); border-top: 1px solid var(--grid); color: var(--ink-3); }
+.gload.l1 { background: #e6f0ec; color: var(--green); }
+.gload.l2 { background: #fbe9c4; color: #8a6a00; }
+.gload.l3 { background: #f6d0cb; color: var(--red); }
+.gbg .lw { position: absolute; top: 0; bottom: 0; }
+.gbg .lw.l2 { background: rgba(232, 184, 30, 0.08); }
+.gbg .lw.l3 { background: rgba(200, 68, 58, 0.08); }
+.plane .gname .vdot, .plan .gname .vdot { width: 0.6rem; height: 0.6rem; border-radius: 50%; flex: none; }
+.plan .gline .gname { cursor: pointer; }
+.plane.vend .gname, .plane.vend .gtrack { border-bottom-color: var(--grid-2); }
+.plane:not(.vend) .gname { border-bottom-color: transparent; }
+.plan .padd .gname { color: var(--ink-3); gap: 0.25rem; }
+.plan .padd .gtrack { cursor: copy; }
+/* イベントのバー: 種類の色、中に名前。負荷が大きいほど濃く */
+.pbar { position: absolute; top: 16%; height: 68%; z-index: 1; border-radius: 0.5rem; background: var(--bar); color: #fff; display: flex; align-items: center; overflow: hidden; touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: 0 1px 2px rgba(25, 40, 59, 0.12); cursor: pointer; }
+.pbar.ld1 { opacity: 0.6; }
+.pbar.ld2 { opacity: 0.82; }
+.pbar .plabel { padding: 0 0.45rem; font-size: 0.72rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; pointer-events: none; }
+.pbar[aria-selected='true'] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--bar); opacity: 1; z-index: 2; }
+.pbar .h { position: absolute; top: 0; bottom: 0; width: 0.875rem; z-index: 2; }
+.pbar .h.l { left: 0; }
+.pbar .h.r { right: 0; }
+.pbar .h::after { content: ''; position: absolute; top: 25%; bottom: 25%; left: 50%; width: 2px; margin-left: -1px; border-radius: 1px; background: #fff; opacity: 0; }
+.pbar[aria-selected='true'] .h::after, .pbar.active .h::after { opacity: 0.9; }
+.pbar.dim { opacity: 0.3; }
+.pbar.active { z-index: 3; }
+.plan-legend { display: flex; align-items: center; gap: 0.375rem; flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-2); min-width: 0; }
+.lchip { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.7rem; flex: none; }
+.lchip.l1 { background: #e6f0ec; color: var(--green); }
+.lchip.l2 { background: #fbe9c4; color: #8a6a00; }
+.lchip.l3 { background: #f6d0cb; color: var(--red); }
+.stepper.weeks { justify-content: space-between; min-height: 2.75rem; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-sm); padding: 0 0.125rem; }
+.stepper.weeks .num { font-weight: 700; }

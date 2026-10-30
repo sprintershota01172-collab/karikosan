@@ -3,9 +3,10 @@
  * 保存データは SCHEMA の番号つき。古い番号のデータは migrate() で今の形に直してから使う。
  */
 import { isDateStr } from './dates';
-import type { AppData, CalEvent, Checklist, Group, Settings, Task, Vehicle } from './types';
+import type { AppData, CalEvent, Checklist, Group, PlanEvent, Settings, Task, Vehicle } from './types';
 
-export const SCHEMA = 1;
+/** 2: 大日程（plans）を追加 */
+export const SCHEMA = 2;
 export const APP_ID = 'karikosan';
 
 export const VEHICLE_COLORS = ['#3D7469', '#3B6EA8', '#B7791F', '#8E5BA8', '#C2554A', '#4F8A9E', '#6B7A3A', '#9299A3'];
@@ -13,10 +14,10 @@ export const VEHICLE_COLORS = ['#3D7469', '#3B6EA8', '#B7791F', '#8E5BA8', '#C25
 let seq = 0;
 export const uid = (p = 'id'): string => `${p}_${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', oneGroup: true });
+export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', oneGroup: true, planZoom: 'week' });
 
 export function emptyData(): AppData {
-  return { schema: SCHEMA, vehicles: [], groups: [], tasks: [], events: [], checklists: [], settings: defaultSettings(), updatedAt: Date.now() };
+  return { schema: SCHEMA, vehicles: [], groups: [], tasks: [], events: [], checklists: [], plans: [], settings: defaultSettings(), updatedAt: Date.now() };
 }
 
 export function newTask(p: Partial<Task> & { title: string }): Task {
@@ -164,6 +165,28 @@ export function migrate(raw: unknown): AppData {
         .map((x, j) => ({ id: x.id as string, text: str(x.text), done: bool(x.done), order: num(x.order, j) })),
     }));
 
+  const kinds = ['design', 'proto', 'eval', 'prep', 'mass', 'other'];
+  const plans: PlanEvent[] = arr(src.plans)
+    .filter(isObj)
+    .filter((p) => isDateStr(p.start) && isDateStr(p.end) && okId(p.id))
+    .map((p) => {
+      const ld = Math.round(num(p.load, 2));
+      const a = p.start as string;
+      const b = p.end as string;
+      return {
+        id: p.id as string,
+        vehicleId: vref(p.vehicleId),
+        title: str(p.title),
+        start: a <= b ? a : b,
+        end: a <= b ? b : a,
+        kind: (kinds.includes(p.kind as string) ? p.kind : 'other') as PlanEvent['kind'],
+        load: (ld >= 1 && ld <= 3 ? ld : 2) as PlanEvent['load'],
+        memo: str(p.memo),
+        createdAt: num(p.createdAt, Date.now()),
+        updatedAt: num(p.updatedAt, Date.now()),
+      };
+    });
+
   const s = isObj(src.settings) ? src.settings : {};
   const d = defaultSettings();
   const settings: Settings = {
@@ -173,9 +196,10 @@ export function migrate(raw: unknown): AppData {
     vehicle: typeof s.vehicle === 'string' && (s.vehicle === 'all' || vIds.has(s.vehicle)) ? s.vehicle : 'all',
     ganttZoom: s.ganttZoom === 'week' || s.ganttZoom === 'month' ? s.ganttZoom : 'day',
     oneGroup: bool(s.oneGroup, d.oneGroup),
+    planZoom: s.planZoom === 'month' ? 'month' : 'week',
   };
 
-  return { schema: SCHEMA, vehicles, groups, tasks, events, checklists, settings, updatedAt: num(src.updatedAt, Date.now()) };
+  return { schema: SCHEMA, vehicles, groups, tasks, events, checklists, plans, settings, updatedAt: num(src.updatedAt, Date.now()) };
 }
 
 export interface ExportFile {

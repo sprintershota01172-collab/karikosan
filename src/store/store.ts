@@ -134,8 +134,8 @@ export const flushNow = flush;
 
 /* ---------- 画面の状態 ---------- */
 
-export type Tab = 'home' | 'tasks' | 'gantt' | 'calendar' | 'settings';
-export const TABS: Tab[] = ['home', 'tasks', 'gantt', 'calendar', 'settings'];
+export type Tab = 'home' | 'tasks' | 'gantt' | 'plan' | 'calendar' | 'settings';
+export const TABS: Tab[] = ['home', 'tasks', 'gantt', 'plan', 'calendar', 'settings'];
 
 export interface SheetSpec {
   kind: string;

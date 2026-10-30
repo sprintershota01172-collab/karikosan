@@ -21,12 +21,13 @@ import {
   updateTask,
   updateVehicle,
 } from '../model/actions';
-import { isDateStr, shortDate, today, workdays } from '../model/dates';
+import { addDays as addDaysD, isDateStr, shortDate, startOfWeek as startOfWeekD, today, workdays } from '../model/dates';
+import { addPlan, deletePlan, LOAD_LABEL, PLAN_KIND_ORDER, PLAN_KINDS, snapWeeks, updatePlan, weeksOf } from '../model/plan';
 import { REPEAT_LABEL } from '../model/recur';
 import { assignees, type StatusFilter } from '../model/rows';
 import { VEHICLE_COLORS } from '../model/schema';
 import { search } from '../model/search';
-import type { CalEvent, Priority } from '../model/types';
+import type { CalEvent, PlanEvent, Priority } from '../model/types';
 import { closeSheet, commit, openSheet, setTab, setUI, toast, useData, useUI } from '../store/store';
 import { AutoArea, Field, PrioBadge, Reveal, Seg, TextInput, Toggle } from './components/bits';
 import { revealIn } from './reveal';
@@ -471,10 +472,10 @@ export function SearchSheet({ closing }: SheetProps) {
   const [q, setQ] = useState('');
   const r = useMemo(() => search(data, q), [data, q]);
   const vName = (id: string | null) => (id ? data.vehicles.find((v) => v.id === id)?.name ?? '' : '');
-  const none = q.trim() && !r.tasks.length && !r.events.length && !r.groups.length && !r.vehicles.length;
+  const none = q.trim() && !r.tasks.length && !r.events.length && !r.groups.length && !r.vehicles.length && !r.plans.length;
   return (
     <Sheet title="検索" closing={closing}>
-      <input className="inp" value={q} autoFocus placeholder="タスク・予定・グループ・車種" aria-label="検索" enterKeyHint="search" onInput={(e: Event) => setQ((e.target as HTMLInputElement).value)} />
+      <input className="inp" value={q} autoFocus placeholder="タスク・予定・大日程・車種" aria-label="検索" enterKeyHint="search" onInput={(e: Event) => setQ((e.target as HTMLInputElement).value)} />
       {none && <div className="empty">見つかりませんでした</div>}
       {r.vehicles.length > 0 && <div className="res-head">車種</div>}
       {r.vehicles.map((v) => (
@@ -523,6 +524,120 @@ export function SearchSheet({ closing }: SheetProps) {
           <span className="micro num">{shortDate(e.date, false)}</span>
         </button>
       ))}
+      {r.plans.length > 0 && <div className="res-head">大日程 {r.plans.length}件</div>}
+      {r.plans.map((p) => (
+        <button key={p.id} type="button" className="item" style={{ borderRadius: 'var(--r)' }} onClick={() => openSheet('plan', { id: p.id })}>
+          <Icon name="flag" size={18} />
+          <span className="grow" style={{ minWidth: 0 }}>
+            <Reveal text={p.title} />
+          </span>
+          <span className="micro num">{`${vName(p.vehicleId) || '共通'}・${shortDate(p.start, false)}〜`}</span>
+        </button>
+      ))}
+    </Sheet>
+  );
+}
+
+/* ---------- 大日程のイベント ---------- */
+export function PlanSheet({ props, closing }: SheetProps) {
+  const id = props.id as string | undefined;
+  const p = useData((d) => (id ? d.plans.find((x) => x.id === id) ?? null : null));
+  const vehicles = useData((d) => d.vehicles);
+  const isNew = !id;
+  const [draft, setDraft] = useState<PlanEvent>(() => {
+    const r = snapWeeks((props.start as string) ?? today(), (props.start as string) ?? today());
+    return { id: '', title: '', vehicleId: (props.vehicleId as string | null) ?? null, kind: 'other', load: 2, memo: '', start: r.start, end: addDaysD(r.start, 4 * 7 - 1), createdAt: 0, updatedAt: 0 };
+  });
+  if (!isNew && !p) return <Sheet title="イベント" closing={closing}><div className="empty">削除されました</div></Sheet>;
+  const v = isNew ? draft : p!;
+  const set = (patch: Partial<PlanEvent>) => {
+    if (isNew) return setDraft((x) => ({ ...x, ...patch, ...snapWeeks(patch.start ?? x.start, patch.end ?? x.end) }));
+    commit((d) => updatePlan(d, id!, patch), { undoable: true });
+  };
+  const weeks = weeksOf(v);
+  const setWeeks = (n: number) => set({ end: addDaysD(v.start, Math.max(1, Math.min(104, n)) * 7 - 1) });
+  const save = () => {
+    if (!draft.title.trim()) return toast('イベント名を入れてください');
+    const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = draft;
+    commit((d) => addPlan(d, rest).data, { toast: `「${draft.title.trim()}」を大日程に追加` });
+    closeSheet();
+  };
+  const remove = () => {
+    closeSheet();
+    commit((d) => deletePlan(d, id!), { toast: `「${p!.title}」を削除しました`, undoable: true });
+  };
+  return (
+    <Sheet
+      title={isNew ? 'イベントを追加' : v.title || 'イベント'}
+      closing={closing}
+      foot={
+        isNew ? (
+          <button type="button" className="btn primary" onClick={save}>
+            追加
+          </button>
+        ) : (
+          <button type="button" className="btn danger" onClick={remove}>
+            <Icon name="trash" size={18} />
+            削除
+          </button>
+        )
+      }
+    >
+      <Field label="イベント名">
+        {isNew ? (
+          <input className="inp" value={draft.title} autoFocus placeholder="例: 1次試作" aria-label="イベント名" onInput={(e: Event) => set({ title: (e.target as HTMLInputElement).value })} onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && !e.isComposing && save()} />
+        ) : (
+          <TextInput value={v.title} onCommit={(x) => set({ title: x.trim() || v.title })} />
+        )}
+      </Field>
+      <Field label="車種">
+        <select className="inp" aria-label="車種" value={v.vehicleId ?? ''} onChange={(e: Event) => set({ vehicleId: (e.target as HTMLSelectElement).value || null })}>
+          <option value="">共通（車種に関係しない）</option>
+          {[...vehicles]
+            .sort((a, b) => a.order - b.order)
+            .map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+        </select>
+      </Field>
+      <Field label="種類">
+        <div className="chips" style={{ flexWrap: 'wrap', overflow: 'visible' }} role="group" aria-label="種類">
+          {PLAN_KIND_ORDER.map((k) => (
+            <button key={k} type="button" className="chip" aria-pressed={v.kind === k ? 'true' : 'false'} onClick={() => set({ kind: k })}>
+              <i className="dot" style={{ background: PLAN_KINDS[k].color }} />
+              <span>{PLAN_KINDS[k].label}</span>
+            </button>
+          ))}
+        </div>
+      </Field>
+      <div className="grid2">
+        <Field label="開始の週">
+          <input className="inp num" type="date" aria-label="開始の週" value={v.start} onChange={(e: Event) => {
+            const s = (e.target as HTMLInputElement).value;
+            if (isDateStr(s)) set({ start: s, end: addDaysD(startOfWeekD(s), weeks * 7 - 1) });
+          }} />
+        </Field>
+        <Field label="週数">
+          <div className="stepper weeks">
+            <button type="button" className="iconbtn" aria-label="1週へらす" disabled={weeks <= 1} onClick={() => setWeeks(weeks - 1)}>
+              <Icon name="left" size={18} />
+            </button>
+            <span className="num" aria-label="週数">{weeks}週</span>
+            <button type="button" className="iconbtn" aria-label="1週ふやす" onClick={() => setWeeks(weeks + 1)}>
+              <Icon name="right" size={18} />
+            </button>
+          </div>
+        </Field>
+      </div>
+      <div className="micro num">{`${shortDate(v.start)}〜${shortDate(v.end)}（${weeks}週）`}</div>
+      <Field label="負荷（週ごとの混み具合の合計に使います）">
+        <Seg value={String(v.load)} onChange={(x) => set({ load: Number(x) as 1 | 2 | 3 })} options={[1, 2, 3].map((n) => ({ value: String(n), label: LOAD_LABEL[n as 1 | 2 | 3] }))} label="負荷" />
+      </Field>
+      <Field label="メモ">
+        {isNew ? <AutoArea className="inp" value={draft.memo} placeholder="詳細" aria-label="メモ" onInput={(e: Event) => set({ memo: (e.target as HTMLTextAreaElement).value })} /> : <TextInput multiline value={v.memo} onCommit={(x) => set({ memo: x })} placeholder="詳細" />}
+      </Field>
     </Sheet>
   );
 }
@@ -738,4 +853,5 @@ export const SHEETS: Record<string, (p: SheetProps) => ReturnType<typeof Confirm
   checklist: ChecklistSheet,
   checkItem: CheckItemSheet,
   confirm: ConfirmSheet,
+  plan: PlanSheet,
 };

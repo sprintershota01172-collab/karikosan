@@ -58,7 +58,7 @@ export function ganttRange(rows: Row[], day: string): { from: string; days: numb
   return { from, days: last - toDay(from) + 1 };
 }
 
-function useSize(el: { current: HTMLElement | null }) {
+export function useSize(el: { current: HTMLElement | null }) {
   const [s, setS] = useState({ w: 0, h: 0 });
   useLayoutEffect(() => {
     const x = el.current;

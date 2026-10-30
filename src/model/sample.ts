@@ -1,6 +1,7 @@
 /** 試しに使うためのサンプル（設定から入れる）。今日を基準に日付を作る */
 import { addChecklist, addEvent, addGroup, addTask, addVehicle, setGroupOpen } from './actions';
-import { addWorkdays, today } from './dates';
+import { addDays, addWorkdays, startOfWeek, today } from './dates';
+import { addPlan } from './plan';
 import { emptyData } from './schema';
 import type { AppData } from './types';
 
@@ -50,5 +51,22 @@ export function sampleData(day: string = today()): AppData {
   d = addEvent(d, { title: '金型メーカー打ち合わせ', date: w(3), startTime: '14:00', endTime: '15:00', place: 'オンライン', vehicleId: v2.vehicle.id }).data;
   d = addEvent(d, { title: '試作車の確認', date: w(6), startTime: '13:00', endTime: '16:00', place: '試作工場', vehicleId: v1.vehicle.id }).data;
   d = addChecklist(d, '出張のお土産', 'チームへのお菓子').data;
+  // 大日程（週の単位）。wk(n) = 今週から n 週後の月曜
+  const wk = (n: number) => addDays(startOfWeek(day), n * 7);
+  const plans: [string | null, string, number, number, 'design' | 'proto' | 'eval' | 'prep' | 'mass' | 'other', 1 | 2 | 3][] = [
+    // [車種, 名前, 開始(週), 週数, 種類, 負荷]
+    [v1.vehicle.id, '構想・設計', -6, 8, 'design', 2],
+    [v1.vehicle.id, '出図', 2, 1, 'design', 3],
+    [v1.vehicle.id, '1次試作', 3, 5, 'proto', 3],
+    [v1.vehicle.id, '性能評価', 7, 6, 'eval', 2],
+    [v1.vehicle.id, '生産準備', 12, 8, 'prep', 2],
+    [v1.vehicle.id, '量産開始', 22, 2, 'mass', 3],
+    [v2.vehicle.id, '改良設計', -2, 5, 'design', 1],
+    [v2.vehicle.id, '金型製作', 3, 6, 'prep', 3],
+    [v2.vehicle.id, '確認試作', 6, 3, 'proto', 2],
+    [v2.vehicle.id, '耐久評価', 9, 5, 'eval', 2],
+    [null, '年末年始休み', 9, 1, 'other', 1],
+  ];
+  for (const [vid, title, s, n, kind, load] of plans) d = addPlan(d, { vehicleId: vid, title, start: wk(s), end: addDays(wk(s + n), -1), kind, load }).data;
   return d;
 }

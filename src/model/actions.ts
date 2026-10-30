@@ -121,7 +121,7 @@ export function addVehicle(d: AppData, name: string): { data: AppData; vehicle: 
 }
 export const updateVehicle = (d: AppData, id: ID, patch: Partial<Vehicle>): AppData => touch({ ...d, vehicles: d.vehicles.map((v) => (v.id === id ? { ...v, ...patch, id } : v)) });
 
-/** 車種を消す。タスク・グループ・予定は消さずに「車種なし」へ移す */
+/** 車種を消す。タスク・グループ・予定・大日程は消さずに「車種なし」（大日程は「共通」）へ移す */
 export function deleteVehicle(d: AppData, id: ID): AppData {
   return touch({
     ...d,
@@ -129,6 +129,7 @@ export function deleteVehicle(d: AppData, id: ID): AppData {
     groups: d.groups.map((g) => (g.vehicleId === id ? { ...g, vehicleId: null } : g)),
     tasks: d.tasks.map((t) => (t.vehicleId === id ? { ...t, vehicleId: null } : t)),
     events: d.events.map((e) => (e.vehicleId === id ? { ...e, vehicleId: null } : e)),
+    plans: d.plans.map((p) => (p.vehicleId === id ? { ...p, vehicleId: null } : p)),
     settings: d.settings.vehicle === id ? { ...d.settings, vehicle: 'all' } : d.settings,
   });
 }

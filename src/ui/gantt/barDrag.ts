@@ -27,7 +27,17 @@ interface Active {
   cur: { start: string; end: string };
 }
 
-export function attachBarDrag(root: HTMLElement, scroller: HTMLElement, geom: () => GanttGeom, onCommit: (id: string, start: string, end: string) => void): () => void {
+export interface BarDragOptions {
+  /** 動かす単位（日）。大日程は 7（1週ずつ） */
+  unit?: number;
+  /** 動かした結果をそろえる（大日程: 週の初めと終わり） */
+  snap?: (start: string, end: string) => { start: string; end: string };
+  /** 吹き出しの文字 */
+  tip?: (start: string, end: string, ww: boolean) => string;
+}
+
+export function attachBarDrag(root: HTMLElement, scroller: HTMLElement, geom: () => Pick<GanttGeom, 'from' | 'dayW' | 'nameW'>, onCommit: (id: string, start: string, end: string) => void, opts: BarDragOptions = {}): () => void {
+  const unit = opts.unit ?? 1;
   let pending: { bar: HTMLElement; kind: Kind; x: number; y: number; touch: boolean } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let act: Active | null = null;
@@ -58,19 +68,19 @@ export function attachBarDrag(root: HTMLElement, scroller: HTMLElement, geom: ()
     loop();
   }
 
-  function paint(g: GanttGeom) {
+  function paint(g: Pick<GanttGeom, 'from' | 'dayW' | 'nameW'>) {
     const a = act!;
     const dx = a.lastX - a.x0 + (scroller.scrollLeft - a.scroll0);
-    const delta = Math.round(dx / g.dayW);
-    a.cur = previewRange(a.kind, a.start, a.end, delta, a.ww);
+    const delta = Math.round(dx / g.dayW / unit) * unit;
+    const r = previewRange(a.kind, a.start, a.end, delta, a.ww);
+    a.cur = opts.snap ? opts.snap(r.start, r.end) : r;
     const left = (Date.parse(`${a.cur.start}T00:00:00Z`) - Date.parse(`${g.from}T00:00:00Z`)) / 86_400_000;
     const days = (Date.parse(`${a.cur.end}T00:00:00Z`) - Date.parse(`${a.cur.start}T00:00:00Z`)) / 86_400_000 + 1;
     a.preview.style.left = `${left * g.dayW}px`;
     a.preview.style.width = `${days * g.dayW}px`;
     a.tip.style.left = `${(left + days / 2) * g.dayW}px`;
     a.tip.style.top = '0px';
-    const n = workdays(a.cur.start, a.cur.end, a.ww);
-    a.tip.textContent = `${shortDate(a.cur.start)}〜${shortDate(a.cur.end)}・${n}日`;
+    a.tip.textContent = opts.tip ? opts.tip(a.cur.start, a.cur.end, a.ww) : `${shortDate(a.cur.start)}〜${shortDate(a.cur.end)}・${workdays(a.cur.start, a.cur.end, a.ww)}日`;
   }
 
   /** 端に近づいたら横に自動スクロール */

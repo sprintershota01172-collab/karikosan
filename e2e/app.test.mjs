@@ -6,7 +6,7 @@ import { errors, layoutReport, listTitles, open, saved, setup, sheet, SIZES, tab
 before(setup);
 after(teardown);
 
-const TABS = ['home', 'tasks', 'gantt', 'calendar', 'settings'];
+const TABS = ['home', 'tasks', 'gantt', 'plan', 'calendar', 'settings'];
 
 describe('画面の配置', () => {
   for (const size of Object.keys(SIZES)) {
@@ -222,7 +222,7 @@ describe('文字サイズ', () => {
       for (const t of TABS) {
         await tab(page, t);
         out[t] = await page.evaluate(() => {
-          const el = document.querySelector('.pane:not(.out) .trow .reveal, .pane:not(.out) .gname .reveal, .pane:not(.out) .cal-day, .pane:not(.out) .item, .pane:not(.out) .section-head');
+          const el = document.querySelector('.pane:not(.out) .trow .reveal, .pane:not(.out) .gname .reveal, .pane:not(.out) .pbar .plabel, .pane:not(.out) .cal-day, .pane:not(.out) .item, .pane:not(.out) .section-head');
           return parseFloat(getComputedStyle(el).fontSize);
         });
       }

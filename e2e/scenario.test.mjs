@@ -70,7 +70,7 @@ describe('重点シナリオ（iPhone の画面サイズ・タッチ操作）', 
 
     // 6. 画面の連続切り替え
     for (let i = 0; i < 12; i++) {
-      await page.click(`nav button:nth-child(${(i % 5) + 1})`);
+      await page.click(`nav button:nth-child(${(i % 6) + 1})`);
       await page.waitForTimeout(30);
     }
     await page.waitForTimeout(400);

@@ -38,7 +38,7 @@ export async function open(size = 'iphone', { sample = true, reduced = false } =
 }
 
 export async function tab(page, name) {
-  const i = { home: 1, tasks: 2, gantt: 3, calendar: 4, settings: 5 }[name];
+  const i = { home: 1, tasks: 2, gantt: 3, plan: 4, calendar: 5, settings: 6 }[name];
   await page.click(`nav button:nth-child(${i})`);
   await page.waitForTimeout(320);
 }

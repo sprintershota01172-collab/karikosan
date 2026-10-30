@@ -5,6 +5,7 @@ import { Icon } from './icons';
 import { applyUpdate, BUILD, latestBuild } from './platform';
 import { Calendar } from './screens/Calendar';
 import { GanttScreen } from './screens/GanttScreen';
+import { PlanScreen } from './screens/Plan';
 import { greeting, Home } from './screens/Home';
 import { shortDate, today } from '../model/dates';
 import { FONT_PX, Settings } from './screens/Settings';
@@ -15,11 +16,12 @@ const META: Record<Tab, { label: string; icon: string; title: string }> = {
   home: { label: 'ホーム', icon: 'home', title: 'ホーム' },
   tasks: { label: 'タスク', icon: 'tasks', title: 'タスク' },
   gantt: { label: 'ガント', icon: 'gantt', title: 'ガント' },
+  plan: { label: '大日程', icon: 'flag', title: '大日程' },
   calendar: { label: '予定', icon: 'calendar', title: '予定' },
   settings: { label: '設定', icon: 'settings', title: '設定' },
 };
 
-const SCREEN: Record<Tab, () => ReactElement> = { home: Home, tasks: Tasks, gantt: GanttScreen, calendar: Calendar, settings: Settings };
+const SCREEN: Record<Tab, () => ReactElement> = { home: Home, tasks: Tasks, gantt: GanttScreen, plan: PlanScreen, calendar: Calendar, settings: Settings };
 
 /**
  * 画面の切り替え: 新しい画面を少し横から、前の画面を反対側へ、同時に控えめなフェードで入れ替える。

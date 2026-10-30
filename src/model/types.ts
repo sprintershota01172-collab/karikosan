@@ -72,6 +72,28 @@ export interface CalEvent {
   updatedAt: number;
 }
 
+/** 大日程の種類（バーの色） */
+export type PlanKind = 'design' | 'proto' | 'eval' | 'prep' | 'mass' | 'other';
+
+/**
+ * 大日程のイベント（車種ごとの、週の単位の予定。試作・評価・量産など）。
+ * start は週の初め（月曜）、end は週の終わり（日曜）にそろえて持つ。
+ */
+export interface PlanEvent {
+  id: ID;
+  /** null = 共通（車種に関係しない） */
+  vehicleId: ID | null;
+  title: string;
+  start: DateStr;
+  end: DateStr;
+  kind: PlanKind;
+  /** 負荷の重み 1 小 / 2 中 / 3 大（週ごとの負荷の合計に使う） */
+  load: 1 | 2 | 3;
+  memo: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface CheckItem {
   id: ID;
   text: string;
@@ -100,6 +122,8 @@ export interface Settings {
   ganttZoom: GanttZoom;
   /** グループは1つずつ開く（開くとほかのグループを閉じ、1画面に収める） */
   oneGroup: boolean;
+  /** 大日程の1マス: week = 1週を広く、month = 1年を見渡す */
+  planZoom: 'week' | 'month';
 }
 
 export interface AppData {
@@ -109,6 +133,8 @@ export interface AppData {
   tasks: Task[];
   events: CalEvent[];
   checklists: Checklist[];
+  /** 大日程 */
+  plans: PlanEvent[];
   settings: Settings;
   updatedAt: number;
 }
