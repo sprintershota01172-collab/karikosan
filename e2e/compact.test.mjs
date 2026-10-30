@@ -1,7 +1,7 @@
 // スワイプで削除・普通の縦スクロール（送りなし）・グループを1つずつ開く・ガントの格子・文字入力で画面がずれない
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, openGroup, setup, tab, teardown, touchDrag } from './helpers.mjs';
+import { add, errors, ganttTitles, listTitles, open, openGroup, setup, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -83,8 +83,7 @@ describe('コンパクトにまとめる（送りなし）', () => {
     const { ctx, page } = await open('se');
     await tab(page, 'tasks');
     for (let i = 1; i <= 12; i++) {
-      await page.fill('.quick .inp', `追加${i}`);
-      await page.press('.quick .inp', 'Enter');
+      await add(page, `追加${i}`);
     }
     await page.waitForTimeout(500);
     assert.equal(await page.locator('.pager').count(), 0);
@@ -133,10 +132,53 @@ describe('ガントの格子', () => {
 });
 
 describe('文字を打つとき', () => {
-  it('キーボードが出たら（iPhone の状態を再現）、アプリの高さを見えている範囲に合わせ、下のタブを隠す。入力欄は見える範囲に入る', async () => {
+  it('「＋ タスクを追加」を押すと、入力欄が画面の上に出てすぐ打てる（キーボードより上なので画面がずれない）。続けて追加でき、閉じると元どおり', async () => {
     const { ctx, page } = await open('iphone');
     await tab(page, 'tasks');
-    await page.focus('.quick .inp');
+    const head0 = await page.$eval('.top', (e) => e.getBoundingClientRect().top);
+    await page.click('.quick .opener');
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => {
+      const inp = document.querySelector('.compose .inp');
+      return { focused: document.activeElement === inp, top: inp.getBoundingClientRect().top, bottom: inp.getBoundingClientRect().bottom, vh: innerHeight };
+    });
+    assert.equal(r.focused, true, '押した瞬間に入力欄にフォーカス（キーボードが出る）');
+    assert.ok(r.bottom < r.vh * 0.3, `入力欄は画面の上の方: ${r.top}〜${r.bottom} / ${r.vh}`);
+    await page.keyboard.type('上で追加1');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('上で追加2');
+    await page.keyboard.press('Enter');
+    assert.match(await page.textContent('.compose'), /上で追加2.*2件/);
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.compose .inp')), true, '続けて打てる');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('.compose.open').count(), 0);
+    assert.equal(await page.$eval('.top', (e) => e.getBoundingClientRect().top), head0);
+    const l = await listTitles(page);
+    assert.ok(l.includes('上で追加1') && l.includes('上で追加2'));
+    await ctx.close();
+  });
+
+  it('入力画面（シート）はスマホでは上まで広がり、名前の欄が画面の上側にある', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'tasks');
+    const row = page.locator('.trow', { hasText: '図面の出図' });
+    await row.click();
+    await row.click();
+    await page.waitForTimeout(400);
+    const r = await page.evaluate(() => ({ top: document.querySelector('.sheet:not(.closing) .inp').getBoundingClientRect().top, vh: innerHeight }));
+    assert.ok(r.top < r.vh * 0.3, `名前の欄 ${r.top} / ${r.vh}`);
+    await ctx.close();
+  });
+
+  it('それでもキーボードで見える範囲がずれたとき（iPhone の状態を再現）は、アプリとシートを見えている範囲に合わせる', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'tasks');
+    const row = page.locator('.trow', { hasText: '図面の出図' });
+    await row.click();
+    await row.click();
+    await page.waitForTimeout(400);
+    await page.focus('.sheet:not(.closing) .inp');
     // iPhone ではキーボードが出ても window.innerHeight は変わらず、visualViewport だけが小さくなる。
     // ここでは「innerHeight を大きくして、visualViewport の resize を出す」ことで同じ状態を作る
     const r = await page.evaluate(async () => {
@@ -144,17 +186,16 @@ describe('文字を打つとき', () => {
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: vh + 340 });
       window.visualViewport.dispatchEvent(new Event('resize'));
       await new Promise((ok) => setTimeout(ok, 450));
-      const inp = document.querySelector('.quick .inp').getBoundingClientRect();
+      const sh = document.querySelector('.sheet:not(.closing)').getBoundingClientRect();
       const head = document.querySelector('.top').getBoundingClientRect();
-      return { open: document.documentElement.classList.contains('kb-open'), appH: document.querySelector('.app').getBoundingClientRect().height, vh, inpBottom: inp.bottom, headTop: head.top, nav: getComputedStyle(document.querySelector('.nav')).display, scrollY: window.scrollY };
+      return { open: document.documentElement.classList.contains('kb-open'), appH: document.querySelector('.app').getBoundingClientRect().height, vh, sheetBottom: sh.bottom, headTop: head.top, nav: getComputedStyle(document.querySelector('.nav')).display };
     });
     assert.equal(r.open, true);
     assert.ok(Math.abs(r.appH - r.vh) < 1, `高さ ${r.appH} / ${r.vh}`);
     assert.equal(r.nav, 'none');
-    assert.ok(r.inpBottom <= r.vh, '入力欄がキーボードの上');
+    // 実機ではレイアウトの高さ − キーボード（340）＝ 見えている範囲の下端。ここではレイアウトの高さが変わらないので vh − 340
+    assert.ok(Math.abs(r.sheetBottom - (r.vh - 340)) < 1, `シートの下端がキーボードの上: ${r.sheetBottom} / ${r.vh - 340}`);
     assert.equal(r.headTop, 0, 'ヘッダーは上にずれない');
-    assert.equal(r.scrollY, 0);
-    // 入力を終えると元に戻る
     await page.evaluate(async () => {
       document.activeElement.blur();
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: window.visualViewport.height });

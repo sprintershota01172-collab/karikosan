@@ -1,7 +1,7 @@
 // 画面の配置（5つの画面サイズ）、タスク・予定・チェックリストの操作、文字サイズ、保存、オフライン
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, layoutReport, listTitles, open, saved, setup, sheet, SIZES, tab, teardown, url } from './helpers.mjs';
+import { add, errors, layoutReport, listTitles, open, saved, setup, sheet, SIZES, tab, teardown, url } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -49,10 +49,8 @@ describe('タスク', () => {
   it('追加・編集・完了（元に戻す）・削除し、再起動後も残る', async () => {
     const { ctx, page } = await open('iphone', { sample: false });
     await tab(page, 'tasks');
-    await page.fill('.quick .inp', '図面チェック');
-    await page.press('.quick .inp', 'Enter');
-    await page.fill('.quick .inp', '部品表の更新');
-    await page.press('.quick .inp', 'Enter');
+    await add(page, '図面チェック');
+    await add(page, '部品表の更新');
     assert.deepEqual(await listTitles(page), ['図面チェック', '部品表の更新']);
     // 編集（タップで選択 → もう一度タップで開く）
     const row = page.locator('.trow', { hasText: '図面チェック' });
@@ -108,11 +106,9 @@ describe('タスク', () => {
     await page.waitForTimeout(300);
     // 子ツリーを選んでからクイック追加 → 子ツリーに入る
     await page.locator('.grow-head.child', { hasText: 'ハーネス' }).click();
-    assert.match(await page.locator('.quick .inp').getAttribute('placeholder'), /ハーネスに/);
-    await page.fill('.quick .inp', '配索図');
-    await page.press('.quick .inp', 'Enter');
-    await page.fill('.quick .inp', '端子の選定');
-    await page.press('.quick .inp', 'Enter');
+    assert.match(await page.locator('.quick .opener').getAttribute('aria-label'), /ハーネスに/);
+    await add(page, '配索図');
+    await add(page, '端子の選定');
     await page.locator('.trow', { hasText: '配索図' }).locator('[role="checkbox"]').click();
     const parent = page.locator('.grow-head:not(.child)', { hasText: '電装' });
     assert.equal(await parent.locator('.stat').textContent(), '1/2');
@@ -202,8 +198,7 @@ describe('チェックリスト', () => {
     const { ctx, page } = await open('iphone', { sample: false });
     await tab(page, 'tasks');
     await page.click('.seg button:has-text("チェックリスト")');
-    await page.fill('.quick .inp', 'お土産：ういろう');
-    await page.press('.quick .inp', 'Enter');
+    await add(page, 'お土産：ういろう');
     assert.equal(await page.locator('.grow-head', { hasText: 'お土産' }).count(), 1);
     assert.equal(await page.locator('.crow', { hasText: 'ういろう' }).count(), 1);
     await page.fill('input[aria-label="お土産に項目を追加"]', '手羽先');
@@ -275,8 +270,7 @@ describe('PWA・オフライン', () => {
     assert.ok(online.length >= 5);
     assert.deepEqual(await listTitles(page), online, 'オフラインでもタスクが出る');
     // オフラインでも追加できる
-    await page.fill('.quick .inp', 'オフラインで追加');
-    await page.press('.quick .inp', 'Enter');
+    await add(page, 'オフラインで追加');
     await saved(page);
     await page.reload();
     await page.waitForSelector('.trow');

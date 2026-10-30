@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { addTask, nextSortMode, setGroupOpen, setSettings, setSortMode, SORT_LABEL } from '../../model/actions';
 import type { Row } from '../../model/rows';
 import type { SortMode } from '../../model/types';
 import { commit, getUI, openSheet, setUI, useData, useUI } from '../../store/store';
 import { Seg } from '../components/bits';
+import { openCompose } from '../components/Compose';
 import { revealIn } from '../reveal';
 import { TaskList } from '../components/TaskList';
 import { VehicleChips } from '../components/VehicleChips';
@@ -21,27 +22,17 @@ export function addTarget(rows: Row[], selected: string | null, vehicle: string 
   return { groupId: null, vehicleId: vehicle === 'all' ? null : vehicle, label: '' };
 }
 
-export function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (title: string) => void }) {
-  const [v, setV] = useState('');
-  const submit = () => {
-    const t = v.trim();
-    if (!t) return;
-    onAdd(t);
-    setV('');
-  };
+/**
+ * 下の「＋ タスクを追加」。押すと画面の上に入力欄が出る（components/Compose.tsx。iPhone で画面が上下しないように）
+ */
+export function QuickAdd({ placeholder, onAdd, hint }: { placeholder: string; onAdd: (title: string) => void; hint?: string }) {
   return (
-    <form
-      className="quick"
-      onSubmit={(e: Event) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      <input className="inp" value={v} placeholder={placeholder} enterKeyHint="done" aria-label="タスクを追加" onInput={(e: Event) => setV((e.target as HTMLInputElement).value)} />
-      <button type="submit" className="btn primary" aria-label="追加" disabled={!v.trim()}>
-        <Icon name="plus" />
+    <div className="quick">
+      <button type="button" className="inp opener" aria-label={placeholder} onClick={() => openCompose({ placeholder, hint, onAdd })}>
+        <Icon name="plus" size={18} />
+        <span className="ellipsis">{placeholder}</span>
       </button>
-    </form>
+    </div>
   );
 }
 
@@ -114,6 +105,7 @@ function TaskPane() {
       />
       <QuickAdd
         placeholder={target.label ? `${target.label}にタスクを追加` : 'タスクを追加'}
+        hint={target.label ? `「${target.label}」に追加します` : vehicle === 'all' ? '車種・グループなしで追加します（グループを選んでから押すと、そのグループに追加）' : '選んでいる車種に追加します'}
         onAdd={(title) => {
           const t = addTarget(rows, getUI().selected, vehicle);
           let id = '';

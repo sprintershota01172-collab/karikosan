@@ -160,7 +160,7 @@ describe('大日程', () => {
     for (const size of ['se', 'pc']) {
       const { ctx, page } = await open(size);
       await tab(page, 'plan');
-      const vis = async () => page.$eval('.gscroll', (sc) => (sc.clientWidth - sc.querySelector('.corner').offsetWidth) / sc.querySelector('.pweek').offsetWidth);
+      const vis = async () => page.$eval('.gscroll', (sc) => (sc.clientWidth - document.querySelector('.gcorner').offsetWidth) / sc.querySelector('.pweek').offsetWidth);
       const w1 = await vis();
       for (const z of ['週', '年']) {
         await page.locator('.seg[aria-label="1マスの幅"] button', { hasText: z }).click();
@@ -169,7 +169,7 @@ describe('大日程', () => {
           const bad = await page.evaluate((pos) => {
             const sc = document.querySelector('.gscroll');
             sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) * pos;
-            const corner = document.querySelector('.ghead .corner').getBoundingClientRect();
+            const corner = document.querySelector('.gcorner').getBoundingClientRect();
             const right = sc.getBoundingClientRect().right;
             const vis = (r) => r.width > 0 && r.right > corner.right + 1 && r.left < right - 1;
             const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
@@ -190,4 +190,68 @@ describe('大日程', () => {
 
 describe('エラー', () => {
   it('ブラウザのエラーが出ていない', () => assert.deepEqual(errors, []));
+});
+
+describe('大日程の表示（ご指摘の点）', () => {
+  it('左へ動かしても、バー（選んだものも）が名前の列の上に出ない', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'plan');
+    await bar(page, '1次試作').click(); // 選ぶ（伸ばすモード）
+    const hit = await page.evaluate(async () => {
+      const sc = document.querySelector('.gscroll');
+      const out = [];
+      for (const left of [sc.scrollLeft + 120, sc.scrollLeft + 260, sc.scrollLeft + 400]) {
+        sc.scrollLeft = left;
+        await new Promise((r) => requestAnimationFrame(r));
+        for (const n of document.querySelectorAll('.plane .gname')) {
+          const r = n.getBoundingClientRect();
+          const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          if (el?.closest('.pbar')) out.push(el.closest('.pbar').textContent);
+        }
+      }
+      return out;
+    });
+    assert.deepEqual(hit, []);
+    await ctx.close();
+  });
+
+  it('月の区切りは週の単位（月をまたぐ週は月曜の月に入る）。月の名前は日付と一緒に動き、左上に今の月が出る', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'plan');
+    const r = await page.evaluate(() => {
+      const w = document.querySelector('.pweek').getBoundingClientRect().width;
+      const lefts = [...document.querySelectorAll('.gmonth')].map((m) => parseFloat(m.style.left));
+      return { w, misaligned: lefts.filter((l) => Math.abs(l / w - Math.round(l / w)) > 0.01).length };
+    });
+    assert.equal(r.misaligned, 0, '月の境目が週の途中にない');
+    const m0 = await page.$eval('.gmonth > span', (e) => e.getBoundingClientRect().left);
+    await page.$eval('.gscroll', (e) => (e.scrollLeft += 60));
+    await page.waitForTimeout(100);
+    const m1 = await page.$eval('.gmonth > span', (e) => e.getBoundingClientRect().left);
+    assert.ok(Math.abs(m0 - 60 - m1) < 1, `一緒に動く: ${m0} → ${m1}`);
+    // 左上の枠: 左端の週（月曜）の月
+    await page.$eval('.gscroll', (e) => (e.scrollLeft = 0));
+    await page.waitForTimeout(150);
+    const first = await page.$eval('.pweek', (e) => e.parentElement.querySelector('.gload').dataset.week);
+    const [y, mo] = first.split('-').map(Number);
+    assert.equal(await page.textContent('.gcorner .cmonth'), `${y}年${mo}月`);
+    await ctx.close();
+  });
+
+  it('伸ばすモード（選んだバー）は、ほかの所をタップすると戻る。戻すためのタップでは追加の画面を開かない', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'plan');
+    await bar(page, '1次試作').click();
+    assert.equal(await bar(page, '1次試作').getAttribute('aria-selected'), 'true');
+    await page.click('.top h1'); // ヘッダー
+    assert.equal(await bar(page, '1次試作').getAttribute('aria-selected'), 'false');
+    await bar(page, '1次試作').click();
+    // 何もないマス
+    const t = await page.locator('.plane').last().locator('.gtrack').boundingBox();
+    await page.mouse.click(t.x + t.width - 20, t.y + t.height / 2);
+    await page.waitForTimeout(300);
+    assert.equal(await bar(page, '1次試作').getAttribute('aria-selected'), 'false');
+    assert.equal(await page.locator('.sheet').count(), 0, '追加の画面は開かない');
+    await ctx.close();
+  });
 });

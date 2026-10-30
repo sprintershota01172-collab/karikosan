@@ -124,6 +124,12 @@ export interface Settings {
   oneGroup: boolean;
   /** 大日程の1マス: week = 1週を広く、month = 1年を見渡す */
   planZoom: 'week' | 'month';
+  /** ホームの表示: today = 今日のタスクと予定、quad = 4分割 */
+  homeMode: 'today' | 'quad';
+  /** 4分割の分け方: priority = 至急・高・中・低、group = 選んだ4つのグループ */
+  quadBy: 'priority' | 'group';
+  /** 4分割（グループ）で使うグループ（4つ。null = 未設定） */
+  quadGroups: (ID | null)[];
 }
 
 export interface AppData {

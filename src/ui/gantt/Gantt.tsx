@@ -58,6 +58,38 @@ export function ganttRange(rows: Row[], day: string): { from: string; days: numb
   return { from, days: last - toDay(from) + 1 };
 }
 
+/**
+ * 左端に見えている月（左上の枠に出す）。月の名前は日付と一緒に横へ動くので、今どの月かはここで分かる
+ * dateAt: 横のスクロール量 → 左端の日付
+ */
+export function useLeftMonth(scroller: { current: HTMLElement | null }, dateAt: (scrollLeft: number) => string, deps: unknown[]): string {
+  const [label, setLabel] = useState('');
+  const fn = useRef(dateAt);
+  fn.current = dateAt;
+  useEffect(() => {
+    const sc = scroller.current;
+    if (!sc) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const { y, m } = monthOf(fn.current(sc.scrollLeft));
+      const l = `${y}年${m}月`;
+      setLabel((p) => (p === l ? p : l));
+    };
+    const on = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    sc.addEventListener('scroll', on, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      sc.removeEventListener('scroll', on);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return label;
+}
+
 export function useSize(el: { current: HTMLElement | null }) {
   const [s, setS] = useState({ w: 0, h: 0 });
   useLayoutEffect(() => {
@@ -180,6 +212,7 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   }, [geom.from, geom.days]);
 
   const vColor = useMemo(() => new Map(vehicles.map((v) => [v.id, v.color])), [vehicles]);
+  const leftMonth = useLeftMonth(scroller, (sl) => addDays(geom.from, Math.max(0, Math.floor((sl + 1) / geom.dayW))), [geom.from, geom.dayW, size.w > 0]);
 
   // エクセルのような格子: 日（週の単位では週）ごとの縦線。月の境目は少し濃い線
   const firstMon = (8 - new Date(`${geom.from}T00:00:00Z`).getUTCDay()) % 7;
@@ -196,16 +229,20 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
     <>
     <div className="gantt" ref={box} style={{ ['--row' as string]: `${geom.rowH}px` }}>
       {size.w > 0 && (
+        <div className="gcorner" style={{ width: `${geom.nameW}px`, height: `${headH}px` }}>
+          <span className="cmonth num">{leftMonth}</span>
+          <span>項目</span>
+        </div>
+      )}
+      {size.w > 0 && (
         <div className="gscroll" ref={scroller} data-testid="gantt-scroll">
           <div className="gcontent" style={{ width: `${width}px` }}>
             <div className="ghead" style={{ height: `${headH}px`, width: `${width}px` }}>
-              <div className="corner" style={{ width: `${geom.nameW}px` }}>
-                項目
-              </div>
+              <div className="gspacer" style={{ width: `${geom.nameW}px` }} />
               <div className="gdays" style={{ width: `${geom.days * geom.dayW}px`, height: `${headH}px` }}>
                 {months.map((m) => (
                   <div key={m.left} className="gmonth" style={{ left: `${m.left}px`, width: `${m.width}px` }}>
-                    <span style={{ left: `${geom.nameW}px` }}>{m.label}</span>
+                    {m.width >= rootPx() * 4 && <span>{m.label}</span>}
                   </div>
                 ))}
                 {zoom !== 'month' &&

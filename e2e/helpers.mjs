@@ -142,3 +142,14 @@ export async function showRow(page, locator) {
   });
   await page.waitForTimeout(150);
 }
+
+/** 「＋ 追加」を押して、画面の上に出る入力欄にタスク名を入れて追加する（何件でも）。終わったら閉じる */
+export async function add(page, ...titles) {
+  if (!(await page.locator('.compose.open').count())) await page.locator('.pane:not(.out) .quick .opener').click();
+  for (const t of titles) {
+    await page.fill('.compose .inp', t);
+    await page.press('.compose .inp', 'Enter');
+  }
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+}

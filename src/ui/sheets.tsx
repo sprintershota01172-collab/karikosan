@@ -331,7 +331,7 @@ export function VehiclePickSheet({ closing }: SheetProps) {
   const cur = useData((d) => d.settings.vehicle);
   const pick = (v: string) => (commit((d) => setSettings(d, { vehicle: v }), { undoable: false }), closeSheet());
   return (
-    <Sheet title="車種を選ぶ" closing={closing}>
+    <Sheet title="車種を選ぶ" closing={closing} short>
       <div className="group-card">
         <button type="button" className="item" onClick={() => pick('all')}>
           <span className="grow">すべて</span>
@@ -534,6 +534,48 @@ export function SearchSheet({ closing }: SheetProps) {
           <span className="micro num">{`${vName(p.vehicleId) || '共通'}・${shortDate(p.start, false)}〜`}</span>
         </button>
       ))}
+    </Sheet>
+  );
+}
+
+/* ---------- ホームの4分割: 枠のグループを選ぶ ---------- */
+export function QuadPickSheet({ props, closing }: SheetProps) {
+  const slot = props.slot as number;
+  const groups = useData((d) => d.groups);
+  const vehicles = useData((d) => d.vehicles);
+  const cur = useData((d) => d.settings.quadGroups[slot] ?? null);
+  const pick = (id: string | null) => {
+    commit((d) => setSettings(d, { quadGroups: d.settings.quadGroups.map((x, i) => (i === slot ? id : x === id && id ? null : x)) }), { undoable: false });
+    closeSheet();
+  };
+  const sections = [...vehicles].sort((a, b) => a.order - b.order).map((v) => ({ name: v.name, color: v.color, id: v.id as string | null }));
+  sections.push({ name: '車種なし', color: 'var(--gray)', id: null });
+  return (
+    <Sheet title={`${slot + 1}つ目の枠のグループ`} closing={closing}>
+      <div className="group-card">
+        <button type="button" className="item" onClick={() => pick(null)}>
+          <span className="grow">自動で選ぶ（まだ使っていない上のグループ）</span>
+          {!cur && <Icon name="check" size={18} />}
+        </button>
+      </div>
+      {sections.map((s) => {
+        const parents = groups.filter((g) => g.vehicleId === s.id && !g.parentId).sort((a, b) => a.order - b.order);
+        if (!parents.length) return null;
+        return (
+          <div key={s.name} className="stack" style={{ gap: '0.25rem' }}>
+            <div className="res-head">{s.name}</div>
+            <div className="group-card">
+              {parents.flatMap((g) => [g, ...groups.filter((c) => c.parentId === g.id).sort((a, b) => a.order - b.order)]).map((g) => (
+                <button key={g.id} type="button" className="item" style={g.parentId ? { paddingLeft: '1.75rem', color: 'var(--ink-2)' } : { fontWeight: 700 }} onClick={() => pick(g.id)}>
+                  <i style={{ width: '0.25rem', height: '1rem', borderRadius: 2, background: s.color, flex: 'none' }} />
+                  <span className="grow ellipsis">{g.name}</span>
+                  {cur === g.id && <Icon name="check" size={18} />}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </Sheet>
   );
 }
@@ -818,6 +860,7 @@ export function ConfirmSheet({ props, closing }: SheetProps) {
     <Sheet
       title={p.title}
       closing={closing}
+      short
       foot={
         <>
           <button type="button" className="btn" onClick={() => closeSheet()}>
@@ -854,4 +897,5 @@ export const SHEETS: Record<string, (p: SheetProps) => ReturnType<typeof Confirm
   checkItem: CheckItemSheet,
   confirm: ConfirmSheet,
   plan: PlanSheet,
+  quadPick: QuadPickSheet,
 };

@@ -6,30 +6,12 @@ import { revealIn } from '../reveal';
 
 /**
  * 下から出る入力画面（PC では中央のダイアログ）。中身だけをスクロールする。
- * キーボードが出たときは visualViewport に合わせて高さを縮め、入力欄が隠れないようにする。
+ * スマホでは上まで広げて入力欄を画面の上側に置く（キーボードが出ても画面がずれない）。
+ * キーボードが出たら、下端をキーボードの上に合わせる（App の useKeyboardFit が --kb・--vv-top を決める）。
  */
-export function Sheet({ title, children, foot, closing, onClose, right }: { title: string; children?: ReactNode; foot?: ReactNode; closing?: boolean; onClose?: () => void; right?: ReactNode }) {
+export function Sheet({ title, children, foot, closing, onClose, right, short }: { title: string; children?: ReactNode; foot?: ReactNode; closing?: boolean; onClose?: () => void; right?: ReactNode; short?: boolean }) {
   const close = onClose ?? closeSheet;
   const body = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const fit = () => {
-      // ページは App 側で元の位置に戻すので、キーボードの高さ = 全体の高さ − 見えている高さ
-      const kb = Math.max(0, window.innerHeight - vv.height);
-      document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
-      document.documentElement.style.setProperty('--kb', `${kb}px`);
-    };
-    fit();
-    vv.addEventListener('resize', fit);
-    vv.addEventListener('scroll', fit);
-    return () => {
-      vv.removeEventListener('resize', fit);
-      vv.removeEventListener('scroll', fit);
-      document.documentElement.style.removeProperty('--vvh');
-      document.documentElement.style.removeProperty('--kb');
-    };
-  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
     window.addEventListener('keydown', onKey);
@@ -38,7 +20,7 @@ export function Sheet({ title, children, foot, closing, onClose, right }: { titl
   return (
     <>
       <div className={`backdrop${closing ? ' closing' : ''}`} onClick={close} />
-      <div className={`sheet${closing ? ' closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`sheet${closing ? ' closing' : ''}${short ? '' : ' tall'}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-head">
           <h2 className="ellipsis">{title}</h2>
           {right}

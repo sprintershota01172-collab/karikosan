@@ -1,7 +1,7 @@
 // ガント: 20行表示、バーの移動・伸縮、土日、期限順の自動整列、一覧との同期
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, openGroup, setup, sheet, tab, teardown, touchDrag } from './helpers.mjs';
+import { add, errors, ganttTitles, listTitles, open, openGroup, setup, sheet, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -63,8 +63,7 @@ describe('表示', () => {
       // 日付のないタスクだけ（ご指摘の画面と同じ状態）
       await tab(page, 'tasks');
       for (const t of ['相打ち', '産業ロボットの検討', 'ファナック？']) {
-        await page.fill('.quick .inp', t);
-        await page.press('.quick .inp', 'Enter');
+        await add(page, t);
       }
       await tab(page, 'gantt');
       for (const z of ['日', '週', '月']) {
@@ -74,7 +73,7 @@ describe('表示', () => {
           const bad = await page.evaluate((pos) => {
             const sc = document.querySelector('.gscroll');
             sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) * pos;
-            const corner = document.querySelector('.ghead .corner').getBoundingClientRect();
+            const corner = document.querySelector('.gcorner').getBoundingClientRect();
             const right = sc.getBoundingClientRect().right;
             const vis = (r) => r.width > 0 && r.right > corner.right + 1 && r.left < right - 1;
             const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5;
@@ -85,14 +84,11 @@ describe('表示', () => {
             }
             // 月の名前が区間からはみ出さない
             for (const m of document.querySelectorAll('.gmonth')) {
+              if (!m.firstElementChild) continue;
               const a = m.getBoundingClientRect();
               const b = m.firstElementChild.getBoundingClientRect();
               if (vis(b) && (b.left < a.left - 0.5 || b.right > a.right + 0.5)) out.push(`はみ出し ${b.width.toFixed(0)}>${a.width.toFixed(0)} ${m.textContent}`);
             }
-            // いちばん左に見えている月の名前は、名前の列のすぐ右に出ている（今の月が分かる）
-            const first = [...document.querySelectorAll('.gmonth')].find((m) => m.getBoundingClientRect().right - corner.right > m.firstElementChild.getBoundingClientRect().width + 1);
-            const fr = first.firstElementChild.getBoundingClientRect();
-            if (fr.left < corner.right - 0.5) out.push(`今の月が名前の列の下: ${first.textContent}`);
             return out;
           }, pos);
           assert.deepEqual(bad, [], `${size} 文字${font} ${z} 位置${pos}`);
@@ -107,8 +103,7 @@ describe('表示', () => {
     // 行を増やす（20行を超えて内部スクロールさせる）
     await tab(page, 'tasks');
     for (let i = 0; i < 12; i++) {
-      await page.fill('.quick .inp', `追加タスク${i + 1}`);
-      await page.press('.quick .inp', 'Enter');
+      await add(page, `追加タスク${i + 1}`);
     }
     await tab(page, 'gantt');
     const offs = await page.evaluate(async () => {

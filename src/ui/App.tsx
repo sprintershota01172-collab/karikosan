@@ -1,12 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { closeSheet, setTab, TABS, undo, uiAtom, useData, useMeta, useUI, type Tab } from '../store/store';
+import { clearSelection, closeSheet, setTab, TABS, undo, uiAtom, useData, useMeta, useUI, type Tab } from '../store/store';
+import { Compose } from './components/Compose';
 import { Icon } from './icons';
 import { applyUpdate, BUILD, latestBuild } from './platform';
 import { Calendar } from './screens/Calendar';
 import { GanttScreen } from './screens/GanttScreen';
 import { PlanScreen } from './screens/Plan';
-import { greeting, Home } from './screens/Home';
+import { Home } from './screens/Home';
 import { shortDate, today } from '../model/dates';
 import { FONT_PX, Settings } from './screens/Settings';
 import { Tasks } from './screens/Tasks';
@@ -113,10 +114,11 @@ function UpdateBar() {
 const isTextField = (el: Element | null) => !!el && (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && !['checkbox', 'radio', 'range', 'button', 'submit', 'color', 'file'].includes(el.type)) || (el as HTMLElement).isContentEditable);
 
 /**
- * 文字を打つとき（キーボードが出たとき）に画面全体が上にずれないようにする。
- *  - iPhone はキーボードを出すとき、入力欄が見えるようにページ全体を上へずらす（ヘッダーが画面の外に出る）
- *  - アプリの高さを「キーボードの上に見えている範囲」に合わせ、ずれたページを元の位置に戻す
- *    → ヘッダーはそのまま、入力欄はキーボードのすぐ上に来る。下のタブはキーボードの間だけ隠す
+ * 文字を打つとき（キーボードが出たとき）に画面が上下しないようにする。
+ *  1. 追加の入力欄は画面の上に出す（Compose）。入力画面（シート）も上から広げ、入力欄を上側に置く
+ *     → 入力欄がキーボードより上にあるので、iPhone は画面をずらさない
+ *  2. それでも iPhone が見える範囲をずらしたとき（下の方の入力欄など）は、アプリとシートを「見えている範囲」に合わせる
+ *     --vv-top: 見える範囲の上端のずれ、--vvh: 見える範囲の高さ、--kb: キーボードの高さ
  */
 function useKeyboardFit() {
   useEffect(() => {
@@ -126,13 +128,16 @@ function useKeyboardFit() {
     let raf = 0;
     const apply = () => {
       raf = 0;
-      const kb = Math.max(0, window.innerHeight - vv.height);
+      if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+      const top = Math.max(0, vv.offsetTop);
+      const kb = Math.max(0, window.innerHeight - vv.height - top);
       const open = kb > 120 && isTextField(document.activeElement);
       root.classList.toggle('kb-open', open);
+      root.style.setProperty('--vv-top', `${open ? Math.round(top) : 0}px`);
+      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+      root.style.setProperty('--kb', `${open ? Math.round(kb) : 0}px`);
       if (open) root.style.setProperty('--app-h', `${Math.round(vv.height)}px`);
       else root.style.removeProperty('--app-h');
-      if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
-      if (document.scrollingElement && document.scrollingElement.scrollTop) document.scrollingElement.scrollTop = 0;
     };
     const later = () => {
       if (!raf) raf = requestAnimationFrame(apply);
@@ -142,6 +147,7 @@ function useKeyboardFit() {
       setTimeout(apply, 120);
       setTimeout(apply, 360);
     };
+    apply();
     vv.addEventListener('resize', later);
     vv.addEventListener('scroll', later);
     window.addEventListener('scroll', later, { passive: true });
@@ -155,13 +161,29 @@ function useKeyboardFit() {
       document.removeEventListener('focusin', settle);
       document.removeEventListener('focusout', settle);
       root.classList.remove('kb-open');
-      root.style.removeProperty('--app-h');
+      for (const k of ['--app-h', '--vv-top', '--vvh', '--kb']) root.style.removeProperty(k);
     };
+  }, []);
+}
+
+/** 選んでいる行・バー（伸ばすモード）は、ほかの所をタップしたら外す */
+function useClearSelectionOnTapOutside() {
+  useEffect(() => {
+    const KEEP = '.pbar, .gbar, .gline[data-sort-key], .gline[data-level], .gtrack, .trow, .grow-head, .sheet, .backdrop, .toast, .compose, .quick, .swipe .actions';
+    const on = (e: PointerEvent) => {
+      if (!uiAtom.get().selected) return;
+      const t = e.target as Element | null;
+      if (t?.closest?.(KEEP)) return;
+      clearSelection();
+    };
+    document.addEventListener('pointerdown', on, true);
+    return () => document.removeEventListener('pointerdown', on, true);
   }, []);
 }
 
 export function App() {
   useKeyboardFit();
+  useClearSelectionOnTapOutside();
   const tab = useUI((u) => u.tab);
   const fontStep = useData((d) => d.settings.fontStep);
   const save = useMeta((m) => m.save);
@@ -190,7 +212,7 @@ export function App() {
     <div className="app">
       <header className="top">
         <h1 className="grow">
-          <span className="ellipsis">{tab === 'home' ? greeting() : m.title}</span>
+          <span className="ellipsis">{m.title}</span>
           {tab === 'home' && <small className="num">{shortDate(today())}</small>}
         </h1>
         <span className="save-dot" data-s={save} aria-label={save === 'saved' ? '保存済み' : save === 'saving' ? '保存中' : '保存に失敗'} title={save === 'saved' ? '保存済み' : '保存中'} />
@@ -211,6 +233,7 @@ export function App() {
         ))}
       </nav>
       <Sheets />
+      <Compose />
       <ToastView />
       <UpdateBar />
     </div>

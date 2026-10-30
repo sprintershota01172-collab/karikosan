@@ -2,7 +2,7 @@
 // 20件すべてが並ぶように「グループは1つずつ開く」をオフにして全部開く
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, openAllGroups, saved, setup, showRow, tab, teardown, touchDrag } from './helpers.mjs';
+import { add, errors, ganttTitles, listTitles, open, openAllGroups, saved, setup, showRow, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -14,8 +14,7 @@ describe('重点シナリオ（iPhone の画面サイズ・タッチ操作）', 
     await openAllGroups(page);
     await page.locator('.grow-head', { hasText: 'リア周り' }).click();
     for (let i = 1; i <= 5; i++) {
-      await page.fill('.quick .inp', `追加${i}`);
-      await page.press('.quick .inp', 'Enter');
+      await add(page, `追加${i}`);
     }
     assert.equal((await listTitles(page)).length, 20);
     await page.waitForTimeout(700); // 追加した行へのスクロールが終わるのを待つ

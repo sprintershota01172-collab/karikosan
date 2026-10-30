@@ -4,6 +4,7 @@ import { addCheckItem, addChecklist, moveCheckItem, toggleCheckItem, toggleCheck
 import type { Checklist } from '../../model/types';
 import { commit, openSheet, useData } from '../../store/store';
 import { Check, Reveal } from '../components/bits';
+import { QuickAdd } from './Tasks';
 import { useFlip } from '../components/TaskList';
 import { attachSortable } from '../drag/sortable';
 import { Icon } from '../icons';
@@ -60,7 +61,6 @@ function ListBlock({ c }: { c: Checklist }) {
 export function Checklists() {
   const lists = useData((d) => d.checklists);
   const sorted = [...lists].sort((a, b) => a.order - b.order);
-  const [name, setName] = useState('');
   const scroller = useRef<HTMLDivElement | null>(null);
   const root = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -83,22 +83,15 @@ export function Checklists() {
           ))}
         </div>
       </div>
-      <form
-        className="quick"
-        onSubmit={(e: Event) => {
-          e.preventDefault();
-          if (!name.trim()) return;
+      <QuickAdd
+        placeholder="新しいリスト（例: お土産：クッキー）"
+        hint="「リスト名：最初の項目」と書くと、項目もいっしょに作れます"
+        onAdd={(name) => {
           // 「お土産: クッキー」のように書くと、リストと最初の項目を一度に作る
           const [n, first] = name.split(/[:：]/);
           commit((d) => addChecklist(d, n, first).data, { undoable: true });
-          setName('');
         }}
-      >
-        <input className="inp" value={name} placeholder="新しいリスト（例: お土産：クッキー）" enterKeyHint="done" aria-label="リストを追加" onInput={(e: Event) => setName((e.target as HTMLInputElement).value)} />
-        <button type="submit" className="btn primary" aria-label="リストを追加" disabled={!name.trim()}>
-          <Icon name="plus" />
-        </button>
-      </form>
+      />
     </>
   );
 }

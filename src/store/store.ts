@@ -160,6 +160,8 @@ export interface UI {
   assignee: string | null;
   query: string;
   tasksView: 'tasks' | 'checklists';
+  /** 画面の上に出す追加の入力欄（components/Compose.tsx） */
+  compose: { placeholder: string; hint: string; n: number; last: string } | null;
 }
 
 const tabFromHash = (): Tab => {
@@ -167,9 +169,21 @@ const tabFromHash = (): Tab => {
   return TABS.includes(h) ? h : 'home';
 };
 
-export const uiAtom = atom<UI>({ tab: tabFromHash(), sheets: [], toast: null, selected: null, status: 'all', assignee: null, query: '', tasksView: 'tasks' });
+export const uiAtom = atom<UI>({ tab: tabFromHash(), sheets: [], toast: null, selected: null, status: 'all', assignee: null, query: '', tasksView: 'tasks', compose: null });
 
 export const setUI = (p: Partial<UI>) => uiAtom.set((u) => ({ ...u, ...p }));
+
+/**
+ * 選択の解除（伸ばすモードを抜ける）。選んでいるもの以外をタップしたときに App から呼ぶ。
+ * 解除した直後のタップで「追加」などが動かないよう、解除した時刻を覚えておく。
+ */
+let clearedAt = 0;
+export function clearSelection() {
+  if (!uiAtom.get().selected) return;
+  clearedAt = Date.now();
+  setUI({ selected: null });
+}
+export const justCleared = () => Date.now() - clearedAt < 500;
 
 export function setTab(t: Tab) {
   setUI({ tab: t, selected: null });

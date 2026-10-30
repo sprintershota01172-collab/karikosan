@@ -7,14 +7,14 @@
  */
 import React, { memo, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { setSettings } from '../../model/actions';
-import { addDays, daysInMonth, diffDays, fromDay, monthOf, shortDate, startOfWeek, toDay, today } from '../../model/dates';
+import { addDays, diffDays, monthOf, shortDate, startOfWeek, toDay, today } from '../../model/dates';
 import { LOAD_LABEL, LOAD_LEVEL_LABEL, loadLevel, PLAN_KINDS, planRange, planRows, snapWeeks, updatePlan, weeklyLoad, weeksOf, type PlanRow } from '../../model/plan';
 import type { ID, PlanEvent } from '../../model/types';
-import { commit, getUI, openSheet, setUI, useData, useUI } from '../../store/store';
+import { clearSelection, commit, getUI, justCleared, openSheet, setUI, useData, useUI } from '../../store/store';
 import { Seg } from '../components/bits';
 import { VehicleChips } from '../components/VehicleChips';
 import { attachBarDrag } from '../gantt/barDrag';
-import { useSize } from '../gantt/Gantt';
+import { useLeftMonth, useSize } from '../gantt/Gantt';
 import { Icon } from '../icons';
 
 /** 1週の幅（rem）: week = 1マス1週を広く、year = 1年を見渡す */
@@ -142,44 +142,53 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
     });
   }, [size.w > 0]);
 
+  /** 月の見出し: 週の単位で区切る（月をまたぐ週は、月曜の月＝前の月に入れる） */
   const months = useMemo(() => {
     const out: { left: number; width: number; label: string }[] = [];
-    const end = toDay(g.from) + g.weeks * 7;
-    let d = g.from;
-    while (toDay(d) < end) {
-      const { y, m } = monthOf(d);
-      const next = Math.min(end, toDay(d) + daysInMonth(y, m) - (Number(d.slice(8, 10)) - 1));
-      out.push({ left: x(d), width: (next - toDay(d)) * g.dayW, label: zoom === 'month' && m !== 1 && out.length ? `${m}月` : `${y}年${m}月` });
-      d = fromDay(next);
+    let cur = '';
+    for (let i = 0; i < g.weeks; i++) {
+      const { y, m } = monthOf(addDays(g.from, i * 7));
+      const k = `${y}-${m}`;
+      if (k !== cur) {
+        out.push({ left: i * g.weekW, width: 0, label: zoom === 'month' && m !== 1 && out.length ? `${m}月` : `${y}年${m}月` });
+        cur = k;
+      }
+      out[out.length - 1].width += g.weekW;
     }
     return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [g.from, g.weeks, g.dayW, zoom]);
+  }, [g.from, g.weeks, g.weekW, zoom]);
+  const leftMonth = useLeftMonth(scroller, (sl) => addDays(g.from, Math.max(0, Math.floor((sl + 1) / g.weekW)) * 7), [g.from, g.weekW, size.w > 0]);
 
-  /** 何もない所をタップ: 選んでいるバーがあれば選択を外す。なければその週にイベントを追加 */
+  /** 何もない所をタップ: 選んでいるバーがあれば選択を外す（それだけ）。なければその週にイベントを追加 */
   const onTrack = (e: MouseEvent, vehicleId: ID | null) => {
     if ((e.target as Element).closest('[data-bar]')) return;
-    if (getUI().selected) return setUI({ selected: null });
+    if (getUI().selected) return clearSelection();
+    if (justCleared()) return;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const i = Math.max(0, Math.floor((e.clientX - r.left) / g.weekW));
     openSheet('plan', { vehicleId, start: addDays(g.from, i * 7) });
   };
 
+  // 枠の高さは中身に合わせる（下に大きな空白を作らない。入りきらないときは中でスクロール）
+  const contentH = g.headH + (rows.length + (vehicle !== 'all' ? 1 : 0)) * g.rowH + 2;
   return (
-    <div className="gantt plan" ref={box}>
+    <div className="gantt plan" ref={box} style={{ height: `${Math.max(contentH, g.headH + g.rowH * 2)}px` }}>
+      {size.w > 0 && (
+        <div className="gcorner pcorner" style={{ width: `${g.nameW}px`, height: `${g.headH}px` }}>
+          <span className="cmonth num">{leftMonth}</span>
+          <span>{vehicle === 'all' ? '車種' : 'イベント'}</span>
+          <span className="lname">負荷</span>
+        </div>
+      )}
       {size.w > 0 && (
         <div className="gscroll" ref={scroller} data-testid="plan-scroll">
           <div className="gcontent" style={{ width: `${width}px` }}>
             <div className="ghead" style={{ height: `${g.headH}px`, width: `${width}px` }}>
-              <div className="corner pcorner" style={{ width: `${g.nameW}px` }}>
-                <span>{vehicle === 'all' ? '車種' : 'イベント'}</span>
-                <span className="lname">負荷</span>
-              </div>
+              <div className="gspacer" style={{ width: `${g.nameW}px` }} />
               <div className="gdays" style={{ width: `${g.weeks * g.weekW}px`, height: `${g.headH}px` }}>
                 {months.map((m) => (
                   <div key={m.left} className="gmonth" style={{ left: `${m.left}px`, width: `${m.width}px` }}>
-                    {/* 端の数日だけの月（範囲の始まり・終わり）は、名前が隣と重なるので出さない */}
-                    {m.width >= rootPx() * (zoom === 'month' ? 2.25 : 5.5) && <span style={{ left: `${g.nameW}px` }}>{m.label}</span>}
+                    {m.width >= rootPx() * 2.25 && <span>{m.label}</span>}
                   </div>
                 ))}
                 {Array.from({ length: g.weeks }, (_, i) => (

@@ -1,14 +1,15 @@
 /** ホーム: 今日のタスクと直近の予定 */
 import React, { useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { addTask, hideToday, postpone, unhideToday } from '../../model/actions';
+import { addTask, hideToday, postpone, setSettings, unhideToday } from '../../model/actions';
 import { addDays, shortDate, today } from '../../model/dates';
-import { LEVEL, priorityOf } from '../../model/priority';
+import { comparePriority, LEVEL, priorityOf } from '../../model/priority';
 import { occurrences } from '../../model/recur';
 import { todayList } from '../../model/rows';
-import type { Task } from '../../model/types';
+import type { AppData, ID, Task } from '../../model/types';
 import { commit, openSheet, setTab, setUI, useData } from '../../store/store';
-import { Check, Reveal } from '../components/bits';
+import { Check, PrioBadge, Reveal, Seg } from '../components/bits';
+import { openCompose } from '../components/Compose';
 import { SwipeRow } from '../components/Swipe';
 import { completeTask, dueLabel, removeTask } from '../components/TaskList';
 import { Icon } from '../icons';
@@ -43,15 +44,7 @@ function SwipeTask({ t, color }: { t: Task; color: string }) {
   );
 }
 
-/** 時間帯のあいさつ */
-export function greeting(h = new Date().getHours()) {
-  if (h < 5) return 'おつかれさまです';
-  if (h < 11) return 'おはようございます';
-  if (h < 17) return 'こんにちは';
-  return 'おつかれさまです';
-}
-
-export function Home() {
+function TodayView() {
   const data = useData((d) => d);
   const day = today();
   const { list, hidden } = useMemo(() => todayList(data, day), [data, day]);
@@ -74,7 +67,7 @@ export function Home() {
   }, [list, day, data]);
   const eventBox = useRef<HTMLDivElement | null>(null);
   return (
-    <div className="screen">
+    <>
       <div className="section-head">
         <span>今日のタスク</span>
         <span className="count num">{list.length}件</span>
@@ -150,6 +143,132 @@ export function Home() {
           setUI({ selected: null });
         }}
       />
+    </>
+  );
+}
+
+/* ---------- 4分割 ---------- */
+
+const QUAD_LEVELS = [4, 3, 2, 1] as const;
+
+/** 4分割（グループ）の枠: 選んだグループ。選んでいない枠は、まだ使っていない上位のグループで埋める */
+export function quadGroupIds(data: AppData): (ID | null)[] {
+  const chosen = data.settings.quadGroups.map((id) => (id && data.groups.some((g) => g.id === id) ? id : null));
+  const vOrder = new Map(data.vehicles.map((v) => [v.id, v.order]));
+  const vo = (id: ID | null) => (id ? vOrder.get(id) ?? 1e9 : 2e9);
+  const rest = data.groups
+    .filter((g) => !g.parentId && !chosen.includes(g.id))
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || vo(a.vehicleId) - vo(b.vehicleId) || a.order - b.order)
+    .map((g) => g.id);
+  return chosen.map((id) => id ?? rest.shift() ?? null);
+}
+
+function QuadRow({ t, day, showPri }: { t: Task; day: string; showPri: boolean }) {
+  const due = dueLabel(t, day);
+  return (
+    <div className="qrow" onClick={() => openSheet('task', { id: t.id })}>
+      <Check on={t.done} label={`${t.title}を完了`} onChange={(v) => completeTask(t, v)} />
+      {showPri && <PrioBadge info={priorityOf(t, day)} compact />}
+      <Reveal text={t.title || '無題'} />
+      <span className={`due num ${due.cls}`}>{due.text}</span>
+    </div>
+  );
+}
+
+function Quadrant({ head, tone, count, tasks, day, showPri, onAdd, addLabel, onHead }: { head: string; tone: string; count: number; tasks: Task[]; day: string; showPri: boolean; onAdd?: (title: string) => void; addLabel: string; onHead?: () => void }) {
+  return (
+    <section className={`quad-cell ${tone}`} aria-label={head}>
+      <header className="quad-head">
+        <button type="button" className="qtag" onClick={onHead} disabled={!onHead} aria-label={onHead ? `${head}（グループを選ぶ）` : head}>
+          <span className="ellipsis">{head}</span>
+          {onHead && <Icon name="down" size={14} />}
+        </button>
+        <span className="num pcount">{count}</span>
+        <span className="grow" />
+        {onAdd && (
+          <button type="button" className="iconbtn qadd" aria-label={`${head}に追加`} onClick={() => openCompose({ placeholder: addLabel, hint: `「${head}」に追加します`, onAdd })}>
+            <Icon name="plus" size={18} />
+          </button>
+        )}
+      </header>
+      <div className="quad-list scroll">
+        {tasks.length === 0 && <div className="qempty">なし</div>}
+        {tasks.map((t) => (
+          <QuadRow key={t.id} t={t} day={day} showPri={showPri} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function QuadView() {
+  const data = useData((d) => d);
+  const by = data.settings.quadBy;
+  const day = today();
+  const open = useMemo(() => data.tasks.filter((t) => !t.done).sort(comparePriority(day)), [data.tasks, day]);
+  const gIds = useMemo(() => quadGroupIds(data), [data]);
+  return (
+    <>
+      <div className="toolbar">
+        <div style={{ width: '12rem', flex: 'none' }}>
+          <Seg value={by} onChange={(v) => commit((d) => setSettings(d, { quadBy: v }), { undoable: false })} options={[{ value: 'priority', label: '優先度' }, { value: 'group', label: 'グループ' }]} label="4分割の分け方" />
+        </div>
+        <span className="micro ellipsis grow">{by === 'priority' ? '未完了のタスクを優先度で' : '枠の名前を押すとグループを選べます'}</span>
+      </div>
+      <div className="quad">
+        {by === 'priority'
+          ? QUAD_LEVELS.map((lv) => {
+              const list = open.filter((t) => (priorityOf(t, day).level || 1) === lv);
+              return (
+                <Quadrant
+                  key={lv}
+                  head={LEVEL[lv].label}
+                  tone={`p${lv}`}
+                  count={list.length}
+                  tasks={list}
+                  day={day}
+                  showPri={false}
+                  addLabel={`${LEVEL[lv].label}のタスクを追加`}
+                  // 至急・高・中は手動の優先度にして、その枠に入るように。低は自動（期限なしは低）
+                  onAdd={(title) => commit((d) => addTask(d, { title, priority: lv === 1 ? 0 : lv }).data)}
+                />
+              );
+            })
+          : gIds.map((gid, i) => {
+              const g = gid ? data.groups.find((x) => x.id === gid) ?? null : null;
+              const v = g?.vehicleId ? data.vehicles.find((x) => x.id === g.vehicleId) ?? null : null;
+              const list = g ? (() => {
+                const ids = new Set([g.id, ...data.groups.filter((c) => c.parentId === g.id).map((c) => c.id)]);
+                return open.filter((t) => t.groupId != null && ids.has(t.groupId));
+              })() : [];
+              return (
+                <Quadrant
+                  key={i}
+                  head={g ? g.name : 'グループを選ぶ'}
+                  tone={`q${i}`}
+                  count={list.length}
+                  tasks={list}
+                  day={day}
+                  showPri
+                  addLabel={g ? `${g.name}にタスクを追加` : ''}
+                  onAdd={g ? (title) => commit((d) => addTask(d, { title, groupId: g.id }).data) : undefined}
+                  onHead={() => openSheet('quadPick', { slot: i, vehicle: v?.name ?? '' })}
+                />
+              );
+            })}
+      </div>
+    </>
+  );
+}
+
+export function Home() {
+  const mode = useData((d) => d.settings.homeMode);
+  return (
+    <div className="screen">
+      <div style={{ flex: 'none' }}>
+        <Seg value={mode} onChange={(v) => commit((d) => setSettings(d, { homeMode: v }), { undoable: false })} options={[{ value: 'today', label: '今日' }, { value: 'quad', label: '4分割' }]} label="ホームの表示" />
+      </div>
+      {mode === 'today' ? <TodayView /> : <QuadView />}
     </div>
   );
 }
