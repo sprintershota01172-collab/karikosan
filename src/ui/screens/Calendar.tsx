@@ -6,7 +6,6 @@ import { addDays, addMonths, daysInMonth, monthOf, monthStart, shortDate, startO
 import { occurrences, REPEAT_LABEL } from '../../model/recur';
 import { openSheet, useData } from '../../store/store';
 import { Reveal } from '../components/bits';
-import { PagerBar, usePager } from '../components/Pager';
 import { Icon } from '../icons';
 import { vehicleColor } from '../view';
 
@@ -42,7 +41,6 @@ export function Calendar() {
   // 選んだ日から2週間の予定（画面に5件以上見える）
   const list = useMemo(() => occurrences(data, sel, addDays(sel, 13), vehicle), [data, sel, vehicle]);
   const listBox = useRef<HTMLDivElement | null>(null);
-  const lp = usePager(listBox, true, { item: '.erow', stops: '.erow' });
 
   const go = (n: number) => {
     setDir(n);
@@ -150,7 +148,6 @@ export function Calendar() {
           </button>
         ))}
       </div>
-      <PagerBar p={lp} />
     </div>
   );
 }

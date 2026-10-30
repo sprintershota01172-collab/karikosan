@@ -4,7 +4,6 @@ import { addCheckItem, addChecklist, moveCheckItem, toggleCheckItem, toggleCheck
 import type { Checklist } from '../../model/types';
 import { commit, openSheet, useData } from '../../store/store';
 import { Check, Reveal } from '../components/bits';
-import { PagerBar, usePager } from '../components/Pager';
 import { useFlip } from '../components/TaskList';
 import { attachSortable } from '../drag/sortable';
 import { Icon } from '../icons';
@@ -69,7 +68,6 @@ export function Checklists() {
     return attachSortable(root.current, { scroller: scroller.current, onDrop: (key, group, keys) => commit((d) => moveCheckItem(d, key, group, keys)) });
   }, []);
   useFlip(root);
-  const pager = usePager(scroller, true, { item: '[data-sort-key]', stops: '.grow-head, .crow, form.row' });
   return (
     <>
       <div className="scroll" ref={scroller}>
@@ -85,7 +83,6 @@ export function Checklists() {
           ))}
         </div>
       </div>
-      <PagerBar p={pager} />
       <form
         className="quick"
         onSubmit={(e: Event) => {

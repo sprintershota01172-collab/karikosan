@@ -29,7 +29,7 @@ import { search } from '../model/search';
 import type { CalEvent, Priority } from '../model/types';
 import { closeSheet, commit, openSheet, setTab, setUI, toast, useData, useUI } from '../store/store';
 import { AutoArea, Field, PrioBadge, Reveal, Seg, TextInput, Toggle } from './components/bits';
-import { revealIn } from './components/Pager';
+import { revealIn } from './reveal';
 import { priorityOf, PRIORITY_CHOICES } from '../model/priority';
 import { Sheet } from './components/Sheet';
 import { Icon } from './icons';

@@ -45,16 +45,15 @@ describe('タスクの並べ替え', () => {
     await ctx.close();
   });
 
-  it('タッチ: すぐに縦に動かしても、並べ替えにならず画面も動かない（縦スワイプなし）', async () => {
+  it('タッチ: すぐに縦に動かすとスクロールで、並べ替えにならない', async () => {
     const { ctx, page } = await open('se');
     await tab(page, 'tasks');
     const before = await listTitles(page);
     const top0 = await page.$eval('.pane:not(.out) .scroll', (e) => e.scrollTop);
     const r = await page.locator('.trow', { hasText: 'バンパー形状の検討' }).boundingBox();
     await touchDrag(page, { x: r.x + 100, y: r.y + 20 }, { x: r.x + 100, y: r.y - 150 }, { hold: 30 });
-    await touchDrag(page, { x: r.x + 100, y: r.y + 20 }, { x: r.x + 100, y: r.y + 150 }, { hold: 30 });
     assert.deepEqual(await listTitles(page), before);
-    assert.equal(await page.$eval('.pane:not(.out) .scroll', (e) => e.scrollTop), top0, '縦スワイプで一覧が動かない');
+    assert.ok((await page.$eval('.pane:not(.out) .scroll', (e) => e.scrollTop)) > top0, '一覧がスクロールした');
     await ctx.close();
   });
 

@@ -15,10 +15,9 @@ import { reorder, setDone, setTaskRange } from '../../model/actions';
 import { addDays, daysInMonth, diffDays, fromDay, isWeekend, monthOf, monthStart, resizeEnd, resizeStart, shiftRange, shortDate, toDay, today, workdays, workRuns } from '../../model/dates';
 import type { Row } from '../../model/rows';
 import type { GanttZoom, Task } from '../../model/types';
-import { priorityOf } from '../../model/priority';
+import { LEVEL, priorityOf } from '../../model/priority';
 import { commit, openSheet, setUI, toast, useData, useUI } from '../../store/store';
 import { PrioBadge, Reveal } from '../components/bits';
-import { PagerBar, usePager } from '../components/Pager';
 import { toggleGroup, useFlip } from '../components/TaskList';
 import { Icon } from '../icons';
 import { attachSortable } from '../drag/sortable';
@@ -158,7 +157,6 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
 
   useFlip(body);
   const headH = HEAD_REM * rootPx();
-  const pager = usePager(scroller, size.w > 0, { item: '.gline[data-sort-key]', stops: '.gline', top: () => headH });
 
   /** 月の見出し: 月ごとの区間。文字は区間の中で左に貼りつく（sticky）ので、横に動かしても今の月が見え、隣の月と重ならない */
   const months = useMemo(() => {
@@ -182,6 +180,17 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   }, [geom.from, geom.days]);
 
   const vColor = useMemo(() => new Map(vehicles.map((v) => [v.id, v.color])), [vehicles]);
+
+  // エクセルのような格子: 日（週の単位では週）ごとの縦線。月の境目は少し濃い線
+  const firstMon = (8 - new Date(`${geom.from}T00:00:00Z`).getUTCDay()) % 7;
+  const grid =
+    zoom === 'month'
+      ? undefined
+      : {
+          backgroundImage: 'linear-gradient(to right, var(--grid) 1px, transparent 1px)',
+          backgroundSize: `${zoom === 'week' ? geom.dayW * 7 : geom.dayW}px 100%`,
+          backgroundPosition: `${zoom === 'week' ? firstMon * geom.dayW : 0}px 0`,
+        };
 
   return (
     <>
@@ -215,6 +224,10 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
             <div className="gbody" ref={body} style={{ position: 'relative' }}>
               <div className="gbg" style={{ left: `${geom.nameW}px`, width: `${geom.days * geom.dayW}px` }}>
                 {zoom !== 'month' && weekends.map((i) => <div key={i} className="we" style={{ left: `${i * geom.dayW}px`, width: `${geom.dayW}px` }} />)}
+                <div className="ggrid" style={grid} />
+                {months.map((m) => (
+                  <div key={m.left} className="gmline" style={{ left: `${m.left}px` }} />
+                ))}
                 <div className="now" style={{ left: `${x(day) + geom.dayW / 2 - 1}px` }} />
               </div>
               {rows.map((r) => (
@@ -230,7 +243,6 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
         </div>
       )}
     </div>
-    <PagerBar p={pager} />
     </>
   );
 }
@@ -246,6 +258,20 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
           <Reveal text={r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし'} />
         </div>
         <div className="gtrack" style={{ width: trackW, height: h, background: 'rgba(238,240,236,0.5)' }} />
+      </div>
+    );
+  }
+  if (r.kind === 'prio') {
+    const l = r.level ? LEVEL[r.level] : null;
+    return (
+      <div className={`gline prio p${r.level}`} data-flip={r.key} data-level={0} style={{ height: h }}>
+        <div className="gname v" style={{ width: `${geom.nameW}px`, height: h }}>
+          <span className="ptag">{l ? l.label : '完了'}</span>
+          <span className="num micro" style={{ marginLeft: 'auto', flex: 'none' }}>
+            {r.stats.total}件
+          </span>
+        </div>
+        <div className="gtrack" style={{ width: trackW, height: h }} />
       </div>
     );
   }
@@ -286,6 +312,7 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
       data-flip={t.id}
       data-sort-key={t.id}
       data-sort-group={r.container}
+      data-sort-off={r.container.startsWith('p:') ? 'true' : undefined}
       style={{ height: h }}
       aria-selected={selected ? 'true' : 'false'}
       onClick={() => (selected ? openSheet('task', { id: t.id }) : setUI({ selected: t.id }))}

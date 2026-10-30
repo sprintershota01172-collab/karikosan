@@ -84,7 +84,8 @@ export function layoutReport(page) {
     const ih = innerHeight;
     const se = document.scrollingElement;
     const pageScroll = Math.max(0, se.scrollHeight - ih);
-    const live = (el) => !el.closest('.pane.out') && !el.closest('.gscroll') && !el.closest('.chips');
+    // .reveal の中の文字は、枠（overflow: hidden・…で省略）で切られて見えないので数えない
+    const live = (el) => !el.closest('.pane.out') && !el.closest('.gscroll') && !el.closest('.chips') && !el.parentElement?.closest('.reveal');
     const wide = [...document.querySelectorAll('.app *')]
       .filter(live)
       .filter((el) => {
@@ -129,34 +130,15 @@ export async function openAllGroups(page) {
   await page.waitForTimeout(300);
 }
 
-/**
- * ▲▼ を押す（押せるときだけ。押せたら true）。送っている途中で端に着くとボタンが押せなくなるので、
- * 「押せるか確かめてから押す」の間に状態が変わらないよう、ページの中で1回で行う
- */
-export const press = (page, dir, scope = '.pane:not(.out)') =>
-  page.evaluate(
-    ([sel]) => {
-      const b = document.querySelector(sel);
-      if (!b || b.disabled) return false;
-      b.click();
-      return true;
-    },
-    [`${scope} .pager button[aria-label="${dir === 'up' ? '前の画面へ' : '次の画面へ'}"]`],
-  );
-
-/** その行が見えるまで ▲▼ で送る（縦スワイプは使えないので） */
+/** その行が見えるまで、入っているスクロール領域だけを動かす */
 export async function showRow(page, locator) {
-  for (let i = 0; i < 12; i++) {
-    const pos = await locator.evaluate((el) => {
-      const v = el.closest('[data-paged]');
-      const r = el.getBoundingClientRect();
-      const vr = v.getBoundingClientRect();
-      const head = v.querySelector('.ghead')?.getBoundingClientRect().height ?? 0;
-      return r.top < vr.top + head - 1 ? 'up' : r.bottom > vr.bottom + 1 ? 'down' : 'ok';
-    });
-    if (pos === 'ok') return;
-    if (!(await press(page, pos))) throw new Error(`${pos === 'up' ? '上' : '下'}へ送れない`);
-    await page.waitForTimeout(450);
-  }
-  throw new Error('行が見えるところまで送れない');
+  await locator.evaluate((el) => {
+    const sc = el.closest('.scroll, .gscroll, .sheet-body');
+    const head = sc.querySelector('.ghead')?.getBoundingClientRect().height ?? 0;
+    const r = el.getBoundingClientRect();
+    const v = sc.getBoundingClientRect();
+    if (r.top < v.top + head) sc.scrollTop -= v.top + head - r.top + 4;
+    else if (r.bottom > v.bottom) sc.scrollTop += r.bottom - v.bottom + 4;
+  });
+  await page.waitForTimeout(150);
 }

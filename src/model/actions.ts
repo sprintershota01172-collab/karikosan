@@ -263,8 +263,8 @@ export function setOneGroup(d: AppData, on: boolean): AppData {
   return { ...next, groups: next.groups.map((g) => (close.has(g.id) ? { ...g, collapsed: true } : g)) };
 }
 
-export const SORT_LABEL: Record<Settings['sortMode'], string> = { manual: '手動', due: '期限順', priority: '優先順' };
-/** 並び順のボタン: 手動 → 期限順 → 優先順 → 手動 */
+export const SORT_LABEL: Record<Settings['sortMode'], string> = { manual: '手動', due: '期限順', priority: '優先度別' };
+/** 並び順のボタン: 手動 → 期限順 → 優先度別 → 手動 */
 export const nextSortMode = (m: Settings['sortMode']): Settings['sortMode'] => (m === 'manual' ? 'due' : m === 'due' ? 'priority' : 'manual');
 
 /** 並び順の切り替え（手動へ戻すときは、いまの見た目を保つ） */

@@ -5,7 +5,6 @@ import { emptyData, toExport } from '../../model/schema';
 import { listBackups, type Backup } from '../../store/db';
 import { commit, openSheet, replaceData, toast, useData, useMeta } from '../../store/store';
 import { Seg, Toggle } from '../components/bits';
-import { PagerBar, usePager } from '../components/Pager';
 import { Icon } from '../icons';
 import { applyUpdate, BUILD, BUILT_AT, latestBuild, shareOrDownload } from '../platform';
 
@@ -24,7 +23,6 @@ export function Settings() {
   const font = (n: number) => commit((d) => setSettings(d, { fontStep: Math.max(1, Math.min(10, n)) }), { undoable: false });
   const fileName = `karikosan-${new Date().toISOString().slice(0, 10)}.json`;
   const box = useRef<HTMLDivElement | null>(null);
-  const pager = usePager(box, true, { stops: '.sec, .sec > *, .group-card > *' });
   return (
     <div className="screen">
       <div className="scroll" ref={box}>
@@ -50,7 +48,7 @@ export function Settings() {
             <div className="row between" style={{ minHeight: '2.75rem' }}>
               <span>タスクの並び順</span>
               <div style={{ width: '13rem', maxWidth: '62%' }}>
-                <Seg value={s.sortMode} onChange={(v) => commit((d) => setSortMode(d, v), { undoable: false })} options={[{ value: 'manual', label: '手動' }, { value: 'due', label: '期限順' }, { value: 'priority', label: '優先順' }]} label="並び順" />
+                <Seg value={s.sortMode} onChange={(v) => commit((d) => setSortMode(d, v), { undoable: false })} options={[{ value: 'manual', label: '手動' }, { value: 'due', label: '期限順' }, { value: 'priority', label: '優先度別' }]} label="並び順" />
               </div>
             </div>
             <Toggle label="グループは1つずつ開く" hint="グループを開くと、ほかのグループを閉じます。一覧とガントが1画面に収まります" value={s.oneGroup} onChange={(v) => commit((d) => setOneGroup(d, v), { undoable: false })} />
@@ -184,7 +182,6 @@ export function Settings() {
           </div>
         </div>
       </div>
-      <PagerBar p={pager} />
     </div>
   );
 }

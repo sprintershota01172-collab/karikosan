@@ -4,7 +4,7 @@ import type { Row } from '../../model/rows';
 import type { SortMode } from '../../model/types';
 import { commit, getUI, openSheet, setUI, useData, useUI } from '../../store/store';
 import { Seg } from '../components/bits';
-import { revealIn } from '../components/Pager';
+import { revealIn } from '../reveal';
 import { TaskList } from '../components/TaskList';
 import { VehicleChips } from '../components/VehicleChips';
 import { Icon } from '../icons';
@@ -48,7 +48,7 @@ export function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (
 /** 並び順のボタン（押すたびに 手動 → 期限順 → 優先順） */
 export function SortChip({ mode }: { mode: SortMode }) {
   return (
-    <button type="button" className="chip" aria-pressed="false" onClick={() => commit((d) => setSortMode(d, nextSortMode(mode)), { undoable: false, toast: nextSortMode(mode) === 'priority' ? '優先度の高い順（至急 → 高 → 中 → 低）に並べました' : undefined })} aria-label={`並び順: ${SORT_LABEL[mode]}`}>
+    <button type="button" className="chip" aria-pressed="false" onClick={() => commit((d) => setSortMode(d, nextSortMode(mode)), { undoable: false, toast: nextSortMode(mode) === 'priority' ? '優先度ごとに分けました（至急・高・中・低）' : undefined })} aria-label={`並び順: ${SORT_LABEL[mode]}`}>
       <Icon name="sort" size={14} />
       <span>{SORT_LABEL[mode]}</span>
     </button>

@@ -5,7 +5,8 @@ import { Icon } from './icons';
 import { applyUpdate, BUILD, latestBuild } from './platform';
 import { Calendar } from './screens/Calendar';
 import { GanttScreen } from './screens/GanttScreen';
-import { Home } from './screens/Home';
+import { greeting, Home } from './screens/Home';
+import { shortDate, today } from '../model/dates';
 import { FONT_PX, Settings } from './screens/Settings';
 import { Tasks } from './screens/Tasks';
 import { SHEETS } from './sheets';
@@ -107,7 +108,58 @@ function UpdateBar() {
   );
 }
 
+const isTextField = (el: Element | null) => !!el && (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && !['checkbox', 'radio', 'range', 'button', 'submit', 'color', 'file'].includes(el.type)) || (el as HTMLElement).isContentEditable);
+
+/**
+ * 文字を打つとき（キーボードが出たとき）に画面全体が上にずれないようにする。
+ *  - iPhone はキーボードを出すとき、入力欄が見えるようにページ全体を上へずらす（ヘッダーが画面の外に出る）
+ *  - アプリの高さを「キーボードの上に見えている範囲」に合わせ、ずれたページを元の位置に戻す
+ *    → ヘッダーはそのまま、入力欄はキーボードのすぐ上に来る。下のタブはキーボードの間だけ隠す
+ */
+function useKeyboardFit() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    if (!vv) return;
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const kb = Math.max(0, window.innerHeight - vv.height);
+      const open = kb > 120 && isTextField(document.activeElement);
+      root.classList.toggle('kb-open', open);
+      if (open) root.style.setProperty('--app-h', `${Math.round(vv.height)}px`);
+      else root.style.removeProperty('--app-h');
+      if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+      if (document.scrollingElement && document.scrollingElement.scrollTop) document.scrollingElement.scrollTop = 0;
+    };
+    const later = () => {
+      if (!raf) raf = requestAnimationFrame(apply);
+    };
+    const settle = () => {
+      later();
+      setTimeout(apply, 120);
+      setTimeout(apply, 360);
+    };
+    vv.addEventListener('resize', later);
+    vv.addEventListener('scroll', later);
+    window.addEventListener('scroll', later, { passive: true });
+    document.addEventListener('focusin', settle);
+    document.addEventListener('focusout', settle);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener('resize', later);
+      vv.removeEventListener('scroll', later);
+      window.removeEventListener('scroll', later);
+      document.removeEventListener('focusin', settle);
+      document.removeEventListener('focusout', settle);
+      root.classList.remove('kb-open');
+      root.style.removeProperty('--app-h');
+    };
+  }, []);
+}
+
 export function App() {
+  useKeyboardFit();
   const tab = useUI((u) => u.tab);
   const fontStep = useData((d) => d.settings.fontStep);
   const save = useMeta((m) => m.save);
@@ -136,8 +188,8 @@ export function App() {
     <div className="app">
       <header className="top">
         <h1 className="grow">
-          <span className="ellipsis">{m.title}</span>
-          {tab === 'home' && <small>karikosan</small>}
+          <span className="ellipsis">{tab === 'home' ? greeting() : m.title}</span>
+          {tab === 'home' && <small className="num">{shortDate(today())}</small>}
         </h1>
         <span className="save-dot" data-s={save} aria-label={save === 'saved' ? '保存済み' : save === 'saving' ? '保存中' : '保存に失敗'} title={save === 'saved' ? '保存済み' : '保存中'} />
         <button type="button" className="iconbtn" aria-label="元に戻す" disabled={!canUndo} onClick={undo}>

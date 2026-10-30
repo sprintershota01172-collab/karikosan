@@ -16,11 +16,11 @@ import type { DateStr, Priority, Task } from './types';
 /** 1 低 / 2 中 / 3 高 / 4 至急 */
 export type Level = 1 | 2 | 3 | 4;
 
-export const LEVEL: Record<Level, { label: string; short: string }> = {
-  4: { label: '至急', short: '急' },
-  3: { label: '高', short: '高' },
-  2: { label: '中', short: '中' },
-  1: { label: '低', short: '低' },
+export const LEVEL: Record<Level, { label: string; short: string; hint: string }> = {
+  4: { label: '至急', short: '急', hint: '期限切れ・今日まで・日数が足りない' },
+  3: { label: '高', short: '高', hint: '余裕が3日以内' },
+  2: { label: '中', short: '中', hint: '余裕が10日以内' },
+  1: { label: '低', short: '低', hint: '余裕あり・期限なし' },
 };
 
 /** 編集画面の選択肢（0 = 自動） */

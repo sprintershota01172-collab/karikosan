@@ -5,7 +5,7 @@
  *   車種（すべて表示のとき） → グループ → 子ツリー → タスク
  */
 import { addDays, startOfWeek, today as todayStr, toDay } from './dates';
-import { comparePriority, priorityOf } from './priority';
+import { comparePriority, priorityOf, type Level } from './priority';
 import type { AppData, DateStr, Group, ID, SortMode, Task, Vehicle } from './types';
 
 export interface Stats {
@@ -23,7 +23,10 @@ export type Row =
   | { kind: 'pinned'; key: string; stats: Stats }
   /** open: 中身を出しているか（絞り込み中は折りたたんでいても該当するタスクを出す） */
   | { kind: 'group'; key: string; group: Group; depth: 0 | 1; stats: Stats; vehicle: Vehicle | null; open: boolean }
-  | { kind: 'task'; key: string; task: Task; depth: 0 | 1 | 2; container: string; vehicle: Vehicle | null };
+  /** 優先度別の見出し（level 0 = 完了） */
+  | { kind: 'prio'; key: string; level: Level | 0; stats: Stats }
+  /** where: 優先度別のときに出す「車種・グループ」 */
+  | { kind: 'task'; key: string; task: Task; depth: 0 | 1 | 2; container: string; vehicle: Vehicle | null; where?: string };
 
 export type StatusFilter = 'all' | 'open' | 'done' | 'overdue' | 'today' | 'week' | 'urgent';
 
@@ -154,6 +157,32 @@ export function buildRows(data: AppData, o: ViewOpts): Row[] {
   const allUnder = (gid: ID) => tasksUnder(data, gid).filter(visible);
 
   const rows: Row[] = [];
+
+  // 優先度別: 車種・グループに関係なく 至急 → 高 → 中 → 低 → 完了 に分ける（並べ替えはできない。順番は自動）
+  if (o.sortMode === 'priority') {
+    const by = new Map<number, Task[]>();
+    for (const t of shown) {
+      if (o.vehicle !== 'all' && t.vehicleId !== o.vehicle) continue;
+      const lv = priorityOf(t, o.today).level;
+      if (!by.has(lv)) by.set(lv, []);
+      by.get(lv)!.push(t);
+    }
+    const cmp = comparePriority(o.today);
+    for (const lv of [4, 3, 2, 1, 0] as const) {
+      const list = (by.get(lv) ?? []).sort(lv === 0 ? (a, b) => (b.doneAt ?? 0) - (a.doneAt ?? 0) : cmp);
+      if (!list.length) continue;
+      rows.push({ kind: 'prio', key: `p:${lv}`, level: lv, stats: statsOf(list, o.today) });
+      for (const t of list) {
+        const g = t.groupId ? gById.get(t.groupId) : null;
+        const p = g?.parentId ? gById.get(g.parentId) : null;
+        const v = t.vehicleId ? vById.get(t.vehicleId) ?? null : null;
+        const where = [o.vehicle === 'all' ? v?.name : '', p?.name, g?.name].filter(Boolean).join(' › ');
+        rows.push({ kind: 'task', key: t.id, task: t, depth: 0, container: `p:${lv}`, vehicle: v, where });
+      }
+    }
+    return rows;
+  }
+
   const pushGroup = (g: Group, vehicle: Vehicle | null) => {
     const under = allUnder(g.id);
     const kids = sortGroups(data.groups.filter((x) => x.parentId === g.id));

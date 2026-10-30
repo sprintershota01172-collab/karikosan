@@ -2,21 +2,21 @@ import React, { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { closeSheet } from '../../store/store';
 import { Icon } from '../icons';
-import { PagerBar, usePager } from './Pager';
+import { revealIn } from '../reveal';
 
 /**
- * 下から出る入力画面（PC では中央のダイアログ）。収まらない分は ▲▼ で送る（縦スワイプでは動かさない）。
+ * 下から出る入力画面（PC では中央のダイアログ）。中身だけをスクロールする。
  * キーボードが出たときは visualViewport に合わせて高さを縮め、入力欄が隠れないようにする。
  */
 export function Sheet({ title, children, foot, closing, onClose, right }: { title: string; children?: ReactNode; foot?: ReactNode; closing?: boolean; onClose?: () => void; right?: ReactNode }) {
   const close = onClose ?? closeSheet;
   const body = useRef<HTMLDivElement | null>(null);
-  const pager = usePager(body, true, { stops: '.sheet-body > *' });
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const fit = () => {
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      // ページは App 側で元の位置に戻すので、キーボードの高さ = 全体の高さ − 見えている高さ
+      const kb = Math.max(0, window.innerHeight - vv.height);
       document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
       document.documentElement.style.setProperty('--kb', `${kb}px`);
     };
@@ -52,12 +52,11 @@ export function Sheet({ title, children, foot, closing, onClose, right }: { titl
           onFocus={(e: FocusEvent) => {
             // キーボードで隠れないよう、入力欄を見える位置へ
             const el = e.target as HTMLElement;
-            setTimeout(() => el.scrollIntoView?.({ block: 'nearest' }), 280);
+            setTimeout(() => revealIn(el), 280);
           }}
         >
           {children}
         </div>
-        <PagerBar p={pager} />
         {foot && <div className="sheet-foot">{foot}</div>}
       </div>
     </>

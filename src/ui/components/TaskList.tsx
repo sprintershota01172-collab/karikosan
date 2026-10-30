@@ -4,16 +4,17 @@
  */
 import React, { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { reorder, setDone, setGroupOpen } from '../../model/actions';
+import { deleteTasks, reorder, setDone, setGroupOpen } from '../../model/actions';
 import { shortDate, toDay, today } from '../../model/dates';
-import { priorityOf } from '../../model/priority';
+import { LEVEL, priorityOf } from '../../model/priority';
 import { isOverdue, type Row } from '../../model/rows';
 import type { Task } from '../../model/types';
 import { commit, openSheet, setUI, toast, useUI } from '../../store/store';
 import { attachSortable } from '../drag/sortable';
 import { Icon } from '../icons';
 import { Check, PrioBadge, Reveal, Ring } from './bits';
-import { PagerBar, revealIn, usePager } from './Pager';
+import { SwipeRow } from './Swipe';
+import { revealIn } from '../reveal';
 
 export function dueLabel(t: Task, day = today()) {
   if (!t.due) return { text: '', cls: '' };
@@ -34,18 +35,23 @@ export function completeTask(t: Task, done: boolean) {
   commit((d) => setDone(d, t.id, done), { toast: done ? `「${t.title || '無題'}」を完了` : undefined, undoable: true });
 }
 
-export const TaskRow = memo(function TaskRow({ t, depth, container, selected, color }: { t: Task; depth: number; container: string; selected: boolean; color: string }) {
+export function removeTask(t: Task) {
+  commit((d) => deleteTasks(d, [t.id]), { toast: `「${t.title || '無題'}」を削除しました`, undoable: true });
+}
+
+export const TaskRow = memo(function TaskRow({ t, depth, container, selected, color, where }: { t: Task; depth: number; container: string; selected: boolean; color: string; where?: string }) {
   const due = dueLabel(t);
   const [pop, setPop] = useState(false);
   const pr = priorityOf(t, today());
+  const fixed = container.startsWith('p:'); // 優先度別のときは順番が自動（並べ替えない）
   return (
+    <SwipeRow flip={t.id} actions={[{ label: '削除', icon: 'trash', tone: 'danger', run: () => removeTask(t) }]}>
     <div
-      className={`trow${t.done ? ' done' : ''}${pop ? ' just-done' : ''}`}
+      className={`trow${t.done ? ' done' : ''}${pop ? ' just-done' : ''}${fixed ? ' two' : ''}`}
       data-depth={depth}
       data-sort-key={t.id}
       data-sort-group={container}
-      data-flip={t.id}
-      data-pager-item
+      data-sort-off={fixed ? 'true' : undefined}
       aria-selected={selected ? 'true' : 'false'}
       onClick={() => (selected ? openSheet('task', { id: t.id }) : setUI({ selected: t.id }))}
     >
@@ -58,12 +64,20 @@ export const TaskRow = memo(function TaskRow({ t, depth, container, selected, co
           completeTask(t, v);
         }}
       />
-      <div className="title">
-        <PrioBadge info={pr} />
-        <Reveal text={t.title || '無題'} />
-      </div>
+      {fixed ? (
+        // 優先度別: 優先度は見出しで分かるので印は出さず、2行目に「車種 › グループ・担当」
+        <div className="title two">
+          <Reveal text={t.title || '無題'} />
+          {(where || t.assignee) && <span className="where ellipsis">{[where, t.assignee].filter(Boolean).join('・')}</span>}
+        </div>
+      ) : (
+        <div className="title">
+          <PrioBadge info={pr} />
+          <Reveal text={t.title || '無題'} />
+        </div>
+      )}
       <div className="meta">
-        {t.assignee && <span className="who ellipsis">{t.assignee}</span>}
+        {t.assignee && !fixed && <span className="who ellipsis">{t.assignee}</span>}
         {t.progress > 0 && !t.done && (
           <span className="prog" aria-label={`進捗 ${t.progress}%`}>
             <i style={{ width: `${t.progress}%`, background: color }} />
@@ -79,8 +93,21 @@ export const TaskRow = memo(function TaskRow({ t, depth, container, selected, co
         <span style={{ width: '2rem', flex: 'none' }} />
       )}
     </div>
+    </SwipeRow>
   );
 });
+
+/** 優先度別の見出し（至急・高・中・低・完了） */
+function PrioHead({ r }: { r: Extract<Row, { kind: 'prio' }> }) {
+  const l = r.level ? LEVEL[r.level] : null;
+  return (
+    <div className={`prow p${r.level}`} data-flip={r.key} data-level={0}>
+      <span className="ptag">{l ? l.label : '完了'}</span>
+      <span className="num pcount">{r.stats.total}件</span>
+      <span className="micro ellipsis grow">{l ? l.hint : ''}</span>
+    </div>
+  );
+}
 
 function GroupHead({ r, selected }: { r: Extract<Row, { kind: 'group' }>; selected: boolean }) {
   const g = r.group;
@@ -132,13 +159,12 @@ export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | 
           switched = r.switched;
           return r.data;
         });
-        if (switched) toast('手動の並びに切り替えました（期限順・優先順は並び順のボタンで戻せます）');
+        if (switched) toast('手動の並びに切り替えました（期限順・優先度別は並び順のボタンで戻せます）');
       },
     });
   }, []);
 
   useFlip(root);
-  const pager = usePager(scroller, true, { item: '[data-pager-item]', stops: '.list > *' });
 
   // 一覧の外（余白）をタップしたら選択を外す
   return (
@@ -158,11 +184,11 @@ export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | 
               </div>
             );
           if (r.kind === 'group') return <GroupHead key={r.key} r={r} selected={selected === r.key} />;
-          return <TaskRow key={r.key} t={r.task} depth={r.depth} container={r.container} selected={selected === r.task.id} color={r.vehicle?.color ?? 'var(--green)'} />;
+          if (r.kind === 'prio') return <PrioHead key={r.key} r={r} />;
+          return <TaskRow key={r.key} t={r.task} depth={r.depth} container={r.container} selected={selected === r.task.id} color={r.vehicle?.color ?? 'var(--green)'} where={r.where} />;
         })}
       </div>
     </div>
-    <PagerBar p={pager} />
     </>
   );
 }
