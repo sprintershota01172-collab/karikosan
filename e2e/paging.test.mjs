@@ -1,7 +1,7 @@
 // 縦スワイプなしの設計: ▲▼ で送る・グループは1つずつ開く・PC のホイール
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, openGroup, setup, tab, teardown, touchDrag } from './helpers.mjs';
+import { errors, ganttTitles, listTitles, open, openGroup, press, setup, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -38,10 +38,8 @@ describe('▲▼ で送る', () => {
     await addTasks(page, 10);
     assert.equal(await pager(page).count(), 1);
     // 追加したタスクが見えるように送られている → 先頭まで戻す
-    for (let i = 0; i < 10 && !(await up(page).isDisabled()); i++) {
-      await up(page).click();
-      await page.waitForTimeout(450);
-    }
+    for (let i = 0; i < 10 && (await press(page, 'up')); i++) await page.waitForTimeout(450);
+    await page.waitForTimeout(300);
     assert.ok(await up(page).isDisabled(), '先頭では「上」は押せない');
     assert.match(await down(page).textContent(), /下に\d+件/);
     await down(page).click();
@@ -50,18 +48,14 @@ describe('▲▼ で送る', () => {
     assert.ok(a.scrollTop > 0, '送った');
     assert.ok(Math.abs(a.gap) < 1.5, `先頭の行が切れない: ${a.gap}`);
     assert.match(await up(page).textContent(), /上に\d+件/);
-    for (let i = 0; i < 10 && !(await down(page).isDisabled()); i++) {
-      await down(page).click();
-      await page.waitForTimeout(450);
-    }
+    for (let i = 0; i < 10 && (await press(page, 'down')); i++) await page.waitForTimeout(450);
+    await page.waitForTimeout(300);
     assert.match(await down(page).textContent(), /最後/);
     const last = await page.locator('.trow', { hasText: '追加10' }).boundingBox();
     const box = await page.locator('.pane:not(.out) .scroll').boundingBox();
     assert.ok(last.y + last.height <= box.y + box.height + 1, '最後の行が見える');
-    for (let i = 0; i < 10 && !(await up(page).isDisabled()); i++) {
-      await up(page).click();
-      await page.waitForTimeout(450);
-    }
+    for (let i = 0; i < 10 && (await press(page, 'up')); i++) await page.waitForTimeout(450);
+    await page.waitForTimeout(300);
     assert.equal(await page.$eval('.pane:not(.out) .scroll', (e) => e.scrollTop), 0);
     assert.match(await up(page).textContent(), /先頭/);
     await ctx.close();

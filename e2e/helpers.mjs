@@ -129,6 +129,21 @@ export async function openAllGroups(page) {
   await page.waitForTimeout(300);
 }
 
+/**
+ * ▲▼ を押す（押せるときだけ。押せたら true）。送っている途中で端に着くとボタンが押せなくなるので、
+ * 「押せるか確かめてから押す」の間に状態が変わらないよう、ページの中で1回で行う
+ */
+export const press = (page, dir, scope = '.pane:not(.out)') =>
+  page.evaluate(
+    ([sel]) => {
+      const b = document.querySelector(sel);
+      if (!b || b.disabled) return false;
+      b.click();
+      return true;
+    },
+    [`${scope} .pager button[aria-label="${dir === 'up' ? '前の画面へ' : '次の画面へ'}"]`],
+  );
+
 /** その行が見えるまで ▲▼ で送る（縦スワイプは使えないので） */
 export async function showRow(page, locator) {
   for (let i = 0; i < 12; i++) {
@@ -140,7 +155,7 @@ export async function showRow(page, locator) {
       return r.top < vr.top + head - 1 ? 'up' : r.bottom > vr.bottom + 1 ? 'down' : 'ok';
     });
     if (pos === 'ok') return;
-    await page.locator(`.pane:not(.out) .pager button[aria-label="${pos === 'up' ? '前の画面へ' : '次の画面へ'}"]`).first().click();
+    if (!(await press(page, pos))) throw new Error(`${pos === 'up' ? '上' : '下'}へ送れない`);
     await page.waitForTimeout(450);
   }
   throw new Error('行が見えるところまで送れない');

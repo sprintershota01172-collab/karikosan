@@ -2,7 +2,7 @@
 // 20件すべてが並ぶように「グループは1つずつ開く」をオフにして全部開く（1画面に収まらないので ▲▼ で送る）
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { errors, ganttTitles, listTitles, open, openAllGroups, saved, setup, showRow, tab, teardown, touchDrag } from './helpers.mjs';
+import { errors, ganttTitles, listTitles, open, openAllGroups, press, saved, setup, showRow, tab, teardown, touchDrag } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -56,14 +56,15 @@ describe('重点シナリオ（iPhone の画面サイズ・タッチ操作）', 
     assert.ok(due.indexOf('ヘッドランプ取付検討') < due.indexOf('バンパー形状の検討'), '早くした期限が上へ');
 
     // 5. 高速で送る（▲▼ を連打）・スクロール位置を飛ばす。名前とバーがずれない
-    const pg = (l) => page.locator(`.pane:not(.out) .pager button[aria-label="${l}"]`);
-    for (const l of ['前の画面へ', '次の画面へ', '前の画面へ']) {
-      for (let i = 0; i < 6 && !(await pg(l).isDisabled()); i++) {
-        await pg(l).click();
+    let pressed = 0;
+    for (const dir of ['up', 'down', 'up']) {
+      for (let i = 0; i < 6 && (await press(page, dir)); i++) {
+        pressed++;
         await page.waitForTimeout(40);
       }
       await page.waitForTimeout(500);
     }
+    assert.ok(pressed >= 2, '送れた');
     const drift = await page.evaluate(async () => {
       const sc = document.querySelector('.gscroll');
       let m = 0;

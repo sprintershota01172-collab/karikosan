@@ -74,12 +74,16 @@ export function usePager(view: { current: HTMLElement | null }, ready: unknown, 
   const barRef = useRef<HTMLDivElement | null>(null);
   /** スクロール先（スムーズに送っている途中でもう一度押したときは、そこから次へ） */
   const goal = useRef<number | null>(null);
+  const goalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const off = () => o.current.top?.() ?? 0;
   const cur = (el: HTMLElement) => goal.current ?? el.scrollTop;
   const go = (el: HTMLElement, top: number) => {
     const t = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, Math.round(top)));
     goal.current = t;
+    // 途中で止まった（中身が変わった等）ときに古い行き先を使い続けないよう、少したったら忘れる
+    if (goalTimer.current) clearTimeout(goalTimer.current);
+    goalTimer.current = setTimeout(() => (goal.current = null), 800);
     el.scrollTo({ top: t, behavior: reduced() ? 'auto' : 'smooth' });
   };
   const rows = (el: HTMLElement, sel?: string) => {
