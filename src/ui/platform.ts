@@ -15,6 +15,20 @@ export async function shareOrDownload(filename: string, body: string | Uint8Arra
   } catch (e) {
     if ((e as { name?: string })?.name === 'AbortError') return 'cancelled';
   }
+  // claude.ai の試用版（埋め込み表示）では、ページから直接は保存できないので、表示側の保存の確認を使う
+  const host = (window as unknown as { claude?: { use?: (n: string) => Promise<{ save: (r: { filename: string; data: Blob }) => Promise<unknown> } | null> } }).claude;
+  if (host?.use) {
+    const dl = await host.use('downloads').catch(() => null);
+    if (dl) {
+      try {
+        await dl.save({ filename, data: new Blob([part], { type }) });
+        return 'saved';
+      } catch (e) {
+        if ((e as { code?: string })?.code === 'declined') return 'cancelled';
+        throw new Error((e as { message?: string })?.message ?? '保存できませんでした');
+      }
+    }
+  }
   const url = URL.createObjectURL(new Blob([part], { type }));
   const a = document.createElement('a');
   a.href = url;
