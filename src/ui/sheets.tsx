@@ -34,7 +34,7 @@ import { assignees, type StatusFilter } from '../model/rows';
 import { VEHICLE_COLORS } from '../model/schema';
 import { search } from '../model/search';
 import type { CalEvent, PlanEvent, Priority } from '../model/types';
-import { closeSheet, commit, openSheet, setTab, setUI, toast, useData, useUI } from '../store/store';
+import { closeSheet, commit, getData, openSheet, setTab, setUI, toast, useData, useUI } from '../store/store';
 import { AutoArea, Field, PrioBadge, Reveal, Seg, TextInput, Toggle } from './components/bits';
 import { revealIn } from './reveal';
 import { LEVEL, priorityOf, PRIORITY_CHOICES } from '../model/priority';
@@ -1017,6 +1017,107 @@ export function ConfirmSheet({ props, closing }: SheetProps) {
   );
 }
 
+/* ---------- 長押しのメニュー ---------- */
+export interface MenuAction {
+  label: string;
+  icon: string;
+  danger?: boolean;
+  run: () => void;
+}
+export function MenuSheet({ props, closing }: SheetProps) {
+  const p = props as { title: string; sub?: string; actions: MenuAction[] };
+  return (
+    <Sheet title={p.title} closing={closing} short>
+      {p.sub && <div className="micro" style={{ marginTop: '-0.25rem' }}>{p.sub}</div>}
+      <div className="group-card menu">
+        {p.actions.map((a) => (
+          <button
+            key={a.label}
+            type="button"
+            className={`item${a.danger ? ' danger' : ''}`}
+            onClick={() => {
+              closeSheet();
+              a.run();
+            }}
+          >
+            <Icon name={a.icon} size={18} />
+            <span className="grow">{a.label}</span>
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
+/** タスクの長押しメニュー（完了したタスクも、ここから消せる） */
+export function taskMenu(id: string) {
+  const d = getData();
+  const t = d.tasks.find((x) => x.id === id);
+  if (!t) return;
+  const name = t.title || '無題';
+  openSheet('menu', {
+    title: name,
+    sub: t.done ? '完了したタスク' : undefined,
+    actions: [
+      { label: '編集', icon: 'edit', run: () => openSheet('task', { id }) },
+      { label: t.done ? '未完了に戻す' : '完了にする', icon: t.done ? 'undo' : 'check', run: () => commit((x) => updateTask(x, id, { done: !t.done }), { undoable: true, toast: t.done ? undefined : `「${name}」を完了` }) },
+      { label: '削除', icon: 'trash', danger: true, run: () => commit((x) => deleteTasks(x, [id]), { undoable: true, toast: `「${name}」を削除しました` }) },
+    ] as MenuAction[],
+  });
+}
+
+/** グループの長押しメニュー */
+export function groupMenu(id: string) {
+  const g = getData().groups.find((x) => x.id === id);
+  if (!g) return;
+  openSheet('menu', {
+    title: g.name,
+    actions: [
+      { label: '名前・設定を編集', icon: 'edit', run: () => openSheet('group', { id }) },
+      { label: '並び順を変える', icon: 'sort', run: () => openSheet('order') },
+      {
+        label: '削除',
+        icon: 'trash',
+        danger: true,
+        run: () =>
+          openSheet('confirm', {
+            title: `「${g.name}」を削除しますか？`,
+            body: g.parentId ? '中のタスクは親のグループへ移します（タスクは消えません）。' : '子ツリーも削除し、中のタスクは車種の直下へ移します（タスクは消えません）。',
+            ok: '削除する',
+            danger: true,
+            run: () => commit((x) => deleteGroup(x, id), { undoable: true, toast: `「${g.name}」を削除しました` }),
+          }),
+      },
+    ] as MenuAction[],
+  });
+}
+
+/** 車種の長押しメニュー */
+export function vehicleMenu(id: string) {
+  const v = getData().vehicles.find((x) => x.id === id);
+  if (!v) return;
+  openSheet('menu', {
+    title: v.name,
+    actions: [
+      { label: '名前・色を編集', icon: 'edit', run: () => openSheet('vehicle', { id }) },
+      { label: '並び順を変える', icon: 'sort', run: () => openSheet('order') },
+      {
+        label: '削除',
+        icon: 'trash',
+        danger: true,
+        run: () =>
+          openSheet('confirm', {
+            title: `「${v.name}」を削除しますか？`,
+            body: 'この車種のタスク・グループ・予定は消さずに「車種なし」へ移します。',
+            ok: '削除する',
+            danger: true,
+            run: () => commit((x) => deleteVehicle(x, id), { undoable: true, toast: `「${v.name}」を削除しました` }),
+          }),
+      },
+    ] as MenuAction[],
+  });
+}
+
 export const SHEETS: Record<string, (p: SheetProps) => ReturnType<typeof ConfirmSheet>> = {
   task: TaskSheet,
   group: GroupSheet,
@@ -1034,4 +1135,5 @@ export const SHEETS: Record<string, (p: SheetProps) => ReturnType<typeof Confirm
   order: OrderSheet,
   report: ReportSheet,
   reports: ReportsSheet,
+  menu: MenuSheet,
 };

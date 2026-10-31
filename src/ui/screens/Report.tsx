@@ -8,8 +8,9 @@
 import React, { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { shortDate, today } from '../../model/dates';
-import { addIssue, createReport, deleteReport, lateDays, removeIssue, setIssue, updateReport, viewOf, type ReportView } from '../../model/report';
+import { addIssue, createReport, excludeRow, deleteReport, lateDays, removeIssue, setIssue, updateReport, viewOf, type ReportView } from '../../model/report';
 import type { AppData, Report, ReportRow } from '../../model/types';
+import { deleteTasks } from '../../model/actions';
 import { closeSheet, commit, getData, openSheet, toast, useData } from '../../store/store';
 import { TextInput } from '../components/bits';
 import { Sheet } from '../components/Sheet';
@@ -55,7 +56,7 @@ function Kpi({ label, value, unit, delta, bad }: { label: string; value: number 
   );
 }
 
-function Rows({ items, right, limit = 6 }: { items: ReportRow[]; right: (x: ReportRow) => ReactNode; limit?: number }) {
+function Rows({ items, right, limit = 6, onRemove }: { items: ReportRow[]; right: (x: ReportRow) => ReactNode; limit?: number; onRemove?: (x: ReportRow) => void }) {
   const [all, setAll] = useState(false);
   const shown = all ? items : items.slice(0, limit);
   return (
@@ -68,6 +69,11 @@ function Rows({ items, right, limit = 6 }: { items: ReportRow[]; right: (x: Repo
             {x.where && <span className="ellipsis rw">{x.where}</span>}
           </span>
           <span className="rr num">{right(x)}</span>
+          {onRemove && (
+            <button type="button" className="rx" aria-label={`${x.title}を報告から外す`} onClick={() => onRemove(x)}>
+              <Icon name="close" size={14} />
+            </button>
+          )}
         </div>
       ))}
       {items.length > limit && (
@@ -162,14 +168,38 @@ function Issues({ r, v }: { r: Report; v: ReportView }) {
   );
 }
 
+/** 報告の行の × : 報告から外す（タスクも消すこともできる） */
+function removeRow(r: Report, x: ReportRow) {
+  const index = r.rows.indexOf(x);
+  if (index < 0) return;
+  const exists = !!x.id && getData().tasks.some((t) => t.id === x.id);
+  openSheet('menu', {
+    title: x.title,
+    sub: '間違えて入れたタスクは、報告から外せます',
+    actions: [
+      { label: 'この報告から外す', icon: 'hide', run: () => commit((d) => excludeRow(d, r.id, index), { undoable: true, toast: `「${x.title}」を報告から外しました` }) },
+      ...(exists
+        ? [{ label: 'タスクを削除して、報告からも外す', icon: 'trash', danger: true, run: () => commit((d) => excludeRow(deleteTasks(d, [x.id]), r.id, index), { undoable: true, toast: `「${x.title}」を削除しました` }) }]
+        : []),
+    ],
+  });
+}
+
 export function ReportBody({ r, reports }: { r: Report; reports: Report[] }) {
   const v = useMemo(() => viewOf(r, reports), [r, reports]);
+  const rm = (x: ReportRow) => removeRow(r, x);
   const dl = v.delta;
   return (
     <div className="report" data-testid="report">
       <div className="rmeta">
         <span className="rscope">{r.scope}</span>
         <span className="num">{shortDate(r.date)} 時点</span>
+        {r.date === today() && (
+          <button type="button" className="rup" onClick={makeReport} aria-label="最新の状況に更新">
+            <Icon name="refresh" size={14} />
+            更新
+          </button>
+        )}
         {v.prev && <span className="num micro">前回 {shortDate(v.prev.date)}</span>}
       </div>
       <div className="kpis">
@@ -196,13 +226,13 @@ export function ReportBody({ r, reports }: { r: Report; reports: Report[] }) {
         </Section>
       )}
       <Section title="遅れ" count={v.overdue.length} tone={v.overdue.length ? 'bad' : ''}>
-        {v.overdue.length ? <Rows items={v.overdue} right={(x) => <b className="late">{lateDays(x, r.date)}日</b>} /> : <p className="rnone">遅れているタスクはありません</p>}
+        {v.overdue.length ? <Rows onRemove={rm} items={v.overdue} right={(x) => <b className="late">{lateDays(x, r.date)}日</b>} /> : <p className="rnone">遅れているタスクはありません</p>}
       </Section>
       <Section title="今後2週間の期限" count={v.upcoming.length}>
-        {v.upcoming.length ? <Rows items={v.upcoming} right={(x) => (x.due ? shortDate(x.due, false) : '')} /> : <p className="rnone">ありません</p>}
+        {v.upcoming.length ? <Rows onRemove={rm} items={v.upcoming} right={(x) => (x.due ? shortDate(x.due, false) : '')} /> : <p className="rnone">ありません</p>}
       </Section>
       <Section title={v.prev ? '前回からの完了' : '最近の完了'} count={v.doneSince.length}>
-        {v.doneSince.length ? <Rows items={v.doneSince} right={() => <Icon name="check" size={14} />} /> : <p className="rnone">ありません</p>}
+        {v.doneSince.length ? <Rows onRemove={rm} items={v.doneSince} right={() => <Icon name="check" size={14} />} /> : <p className="rnone">ありません</p>}
       </Section>
       <Issues r={r} v={v} />
       <Section title="所感・連絡事項">

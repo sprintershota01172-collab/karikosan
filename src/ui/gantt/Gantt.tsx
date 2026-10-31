@@ -11,7 +11,7 @@
  *   日付の確定 → 並べ替え（期限順なら）→ FLIP の行アニメーション、の順に分けて行う。
  */
 import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { reorder, setDone, setTaskRange, toggleVehicleOpen } from '../../model/actions';
+import { reorder, setDone, setGroupOrder, setTaskRange, setVehicleOrder, toggleVehicleOpen } from '../../model/actions';
 import { addDays, daysInMonth, diffDays, fromDay, isWeekend, monthOf, monthStart, resizeEnd, resizeStart, shiftRange, shortDate, toDay, today, workdays, workRuns } from '../../model/dates';
 import type { Row } from '../../model/rows';
 import type { GanttZoom, Task } from '../../model/types';
@@ -22,6 +22,7 @@ import { toggleGroup, useFlip } from '../components/TaskList';
 import { Icon } from '../icons';
 import { attachSortable } from '../drag/sortable';
 import { attachBarDrag } from './barDrag';
+import { groupMenu, taskMenu, vehicleMenu } from '../sheets';
 import { SB_PX, ScrollBars } from './ScrollBars';
 
 /** 1日の幅（rem） */
@@ -166,7 +167,17 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
     return attachSortable(body.current, {
       scroller: scroller.current,
       onState: (k) => k && setUI({ selected: null }),
+      // 長押ししたまま離す → メニュー（編集・完了・削除）
+      onHold: (key, el) => {
+        const g = el.dataset.sortGroup ?? '';
+        if (g === 'vehicles') vehicleMenu(key);
+        else if (g.startsWith('gs:')) groupMenu(key);
+        else taskMenu(key);
+      },
       onDrop: (_k, group, keys) => {
+        // 車種・グループの行は、中のタスクごと動かして順番を決める
+        if (group === 'vehicles') return void commit((d) => setVehicleOrder(d, keys));
+        if (group.startsWith('gs:')) return void commit((d) => setGroupOrder(d, keys));
         let switched = false;
         commit((d) => {
           const r = reorder(d, group, keys);
@@ -213,6 +224,17 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   }, [geom.from, geom.days]);
 
   const vColor = useMemo(() => new Map(vehicles.map((v) => [v.id, v.color])), [vehicles]);
+  // 車種・グループの行と一緒に動く行の数（中のグループ・タスク）
+  const spans = useMemo(() => {
+    const lvl = (r: Row) => (r.kind === 'vehicle' || r.kind === 'pinned' || r.kind === 'prio' ? 0 : r.kind === 'group' ? r.depth + 1 : 3);
+    return rows.map((r, i) => {
+      if (r.kind === 'task') return 0;
+      let n = 0;
+      while (i + 1 + n < rows.length && lvl(rows[i + 1 + n]) > lvl(r)) n++;
+      return n;
+    });
+  }, [rows]);
+  const allView = useData((d) => d.settings.vehicle === 'all');
   const leftMonth = useLeftMonth(scroller, (sl) => addDays(geom.from, Math.max(0, Math.floor((sl + 1) / geom.dayW))), [geom.from, geom.dayW, size.w > 0]);
 
   // エクセルのような格子: 日（週の単位では週）ごとの縦線。月の境目は少し濃い線
@@ -274,8 +296,8 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
                     <div className="now" style={{ left: `${x(day) + geom.dayW / 2 - 1}px` }} />
                   </div>
                 )}
-                {rows.map((r) => (
-                  <GanttRow key={r.key} r={r} geom={geom} selected={r.kind === 'task' ? selected === r.task.id : selected === r.key} color={r.kind === 'task' ? vColor.get(r.task.vehicleId ?? '') ?? 'var(--green)' : r.kind === 'group' ? r.vehicle?.color ?? 'var(--navy)' : 'var(--navy)'} day={day} />
+                {rows.map((r, i) => (
+                  <GanttRow key={r.key} r={r} span={spans[i]} all={allView} geom={geom} selected={r.kind === 'task' ? selected === r.task.id : selected === r.key} color={r.kind === 'task' ? vColor.get(r.task.vehicleId ?? '') ?? 'var(--green)' : r.kind === 'group' ? r.vehicle?.color ?? 'var(--navy)' : 'var(--navy)'} day={day} />
                 ))}
                 {rows.length === 0 && (
                   <div className="empty gempty" style={{ position: 'sticky', left: 0, width: `${size.w}px`, height: `${bodyH}px` }}>
@@ -292,7 +314,7 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   );
 }
 
-const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: Row; geom: GanttGeom; selected: boolean; color: string; day: string }) {
+const GanttRow = memo(function GanttRow({ r, geom, selected, color, day, span, all }: { r: Row; geom: GanttGeom; selected: boolean; color: string; day: string; span: number; all: boolean }) {
   const h = `${geom.rowH}px`;
   const trackW = `${geom.days * geom.dayW}px`;
   if (r.kind === 'vehicle' || r.kind === 'pinned') {
@@ -303,7 +325,15 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
     const w = s.start && s.end ? (diffDays(s.start, s.end) + 1) * geom.dayW : 0;
     const color = r.kind === 'pinned' ? 'var(--navy)' : r.vehicle?.color ?? 'var(--gray)';
     return (
-      <div className="gline gveh" data-flip={r.key} data-level={0} data-vkey={key} style={{ height: h }} aria-expanded={r.open ? 'true' : 'false'} onClick={() => commit((d) => toggleVehicleOpen(d, key), { undoable: false })}>
+      <div
+        className="gline gveh"
+        data-flip={r.key}
+        data-level={0}
+        data-vkey={key}
+        data-sort-key={r.kind === 'vehicle' && r.vehicle ? r.vehicle.id : undefined}
+        data-sort-group={r.kind === 'vehicle' && r.vehicle ? 'vehicles' : undefined}
+        data-sort-span={span || undefined}
+        style={{ height: h }} aria-expanded={r.open ? 'true' : 'false'} onClick={() => commit((d) => toggleVehicleOpen(d, key), { undoable: false })}>
         <div className="gname v" style={{ width: `${geom.nameW}px`, height: h }}>
           <span className="gfold" aria-hidden="true">
             <Icon name="down" size={12} />
@@ -342,6 +372,9 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
         data-flip={r.key}
         data-level={r.depth + 1}
         data-group-anchor={r.group.id}
+        data-sort-key={r.group.id}
+        data-sort-group={r.group.parentId ? `gs:${r.group.parentId}` : all && r.group.pinned ? 'gs:pinned' : `gs:${r.group.vehicleId ?? '-'}`}
+        data-sort-span={span || undefined}
         style={{ height: h }}
         aria-selected={selected ? 'true' : 'false'}
         aria-expanded={r.open ? 'true' : 'false'}

@@ -192,7 +192,7 @@ describe('文字を打つとき', () => {
     });
     assert.equal(r.open, true);
     assert.ok(Math.abs(r.appH - r.vh) < 1, `高さ ${r.appH} / ${r.vh}`);
-    assert.equal(r.nav, 'none');
+    assert.equal(r.nav, 'grid', '下のタブも動かさない（画面がブレない）');
     // 実機ではレイアウトの高さ − キーボード（340）＝ 見えている範囲の下端。ここではレイアウトの高さが変わらないので vh − 340
     assert.ok(Math.abs(r.sheetBottom - (r.vh - 340)) < 1, `シートの下端がキーボードの上: ${r.sheetBottom} / ${r.vh - 340}`);
     assert.equal(r.headTop, 0, 'ヘッダーは上にずれない');

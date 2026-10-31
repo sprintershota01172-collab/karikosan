@@ -171,7 +171,7 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
   };
 
   // 枠の高さは中身に合わせる（下に大きな空白を作らない。入りきらないときは中でスクロール）
-  const contentH = g.headH + Math.max(2, rows.length + (vehicle !== 'all' ? 1 : 0)) * g.rowH;
+  const contentH = g.headH + Math.max(1, rows.length + (vehicle !== 'all' ? 1 : 0)) * g.rowH;
   return (
     <div className="gantt plan" ref={box} style={{ height: `${contentH + SB_PX + 1}px` }}>
       {size.w > 0 && (
@@ -189,7 +189,7 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
               <div className="gdays" style={{ width: `${g.weeks * g.weekW}px`, height: `${g.headH}px` }}>
                 {months.map((m) => (
                   <div key={m.left} className="gmonth" style={{ left: `${m.left}px`, width: `${m.width}px` }}>
-                    {m.width >= rootPx() * 2.25 && <span>{m.label}</span>}
+                    {m.width >= rootPx() * 2.25 && <span>{m.width >= rootPx() * 6 ? m.label : m.label.replace(/^\d+年/, '')}</span>}
                   </div>
                 ))}
                 {Array.from({ length: g.weeks }, (_, i) => (
@@ -212,7 +212,8 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
                 {months.map((m) => (
                   <div key={m.left} className="gmline" style={{ left: `${m.left}px` }} />
                 ))}
-                <div className="now" style={{ left: `${x(day) + g.dayW / 2 - 1}px` }} />
+                {/* 今週: 1マス = 1週なので、日の位置の線ではなく、今週の列ごと色を付ける */}
+                <div className="nowcol" style={{ left: `${thisWeek * g.weekW}px`, width: `${g.weekW}px` }} />
               </div>
               {rows.map((r) => (
                 <PlanLine key={r.key} r={r} g={g} selected={selected} onTrack={onTrack} />

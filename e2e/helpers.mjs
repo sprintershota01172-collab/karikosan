@@ -54,7 +54,7 @@ export const sheet = (page) => page.locator('.sheet:not(.closing)').last();
 
 /** 一覧のタスク名（表示順） */
 export const listTitles = (page) => page.$$eval('.trow[data-sort-key] .title .reveal > span', (els) => els.map((e) => e.textContent));
-export const ganttTitles = (page) => page.$$eval('.gline[data-sort-key] .gname .reveal > span', (els) => els.map((e) => e.textContent));
+export const ganttTitles = (page) => page.$$eval('.gline[data-sort-key]:not(.gveh):not([data-group-anchor]) .gname .reveal > span', (els) => els.map((e) => e.textContent));
 
 /** CDP でタッチ操作（長押し → 動かす → 離す） */
 export async function touchDrag(page, from, to, { hold = 420, steps = 14, sample } = {}) {

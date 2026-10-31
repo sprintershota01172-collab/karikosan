@@ -116,10 +116,11 @@ const isTextField = (el: Element | null) => !!el && (el instanceof HTMLTextAreaE
 
 /**
  * 文字を打つとき（キーボードが出たとき）に画面が上下しないようにする。
- *  1. 追加の入力欄は画面の上に出す（Compose）。入力画面（シート）も上から広げ、入力欄を上側に置く
- *     → 入力欄がキーボードより上にあるので、iPhone は画面をずらさない
- *  2. それでも iPhone が見える範囲をずらしたとき（下の方の入力欄など）は、アプリとシートを「見えている範囲」に合わせる
- *     --vv-top: 見える範囲の上端のずれ、--vvh: 見える範囲の高さ、--kb: キーボードの高さ
+ *  - アプリの画面（ヘッダー・一覧・下のタブ）は、キーボードが出ても動かさず、大きさも変えない（動かすとブレて見える）
+ *  - 追加の入力欄（Compose）は画面の上、入力画面（シート）は上から広げて入力欄を上側に置く → キーボードに隠れない
+ *  - キーボードの高さ（--kb）だけを入力画面と通知の下端に使う。iPhone が見える範囲をずらしたとき（--vv-top）は、
+ *    上に浮いている入力欄とシートだけを合わせる
+ *  値が変わったときだけ書き換える（同じ値を何度も入れて描き直さない）
  */
 function useKeyboardFit() {
   useEffect(() => {
@@ -127,18 +128,22 @@ function useKeyboardFit() {
     const root = document.documentElement;
     if (!vv) return;
     let raf = 0;
+    const last: Record<string, string> = {};
+    const put = (k: string, v: string) => {
+      if (last[k] === v) return;
+      last[k] = v;
+      root.style.setProperty(k, v);
+    };
     const apply = () => {
       raf = 0;
       if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
       const top = Math.max(0, vv.offsetTop);
       const kb = Math.max(0, window.innerHeight - vv.height - top);
       const open = kb > 120 && isTextField(document.activeElement);
-      root.classList.toggle('kb-open', open);
-      root.style.setProperty('--vv-top', `${open ? Math.round(top) : 0}px`);
-      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
-      root.style.setProperty('--kb', `${open ? Math.round(kb) : 0}px`);
-      if (open) root.style.setProperty('--app-h', `${Math.round(vv.height)}px`);
-      else root.style.removeProperty('--app-h');
+      if (root.classList.contains('kb-open') !== open) root.classList.toggle('kb-open', open);
+      put('--vv-top', `${open ? Math.round(top) : 0}px`);
+      put('--vvh', `${Math.round(vv.height)}px`);
+      put('--kb', `${open ? Math.round(kb) : 0}px`);
     };
     const later = () => {
       if (!raf) raf = requestAnimationFrame(apply);
@@ -162,7 +167,7 @@ function useKeyboardFit() {
       document.removeEventListener('focusin', settle);
       document.removeEventListener('focusout', settle);
       root.classList.remove('kb-open');
-      for (const k of ['--app-h', '--vv-top', '--vvh', '--kb']) root.style.removeProperty(k);
+      for (const k of ['--vv-top', '--vvh', '--kb']) root.style.removeProperty(k);
     };
   }, []);
 }

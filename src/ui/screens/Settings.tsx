@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { moveVehicle, setOneGroup, setSettings, setSortMode } from '../../model/actions';
+import { deleteTasks, moveVehicle, setOneGroup, setSettings, setSortMode } from '../../model/actions';
 import { sampleData } from '../../model/sample';
 import { emptyData, toExport } from '../../model/schema';
 import { listBackups, type Backup } from '../../store/db';
@@ -36,6 +36,10 @@ function OfflineReady() {
 export function Settings() {
   const s = useData((d) => d.settings);
   const vehicles = useData((d) => d.vehicles);
+  const doneIds = useData(
+    (d) => d.tasks.filter((t) => t.done).map((t) => t.id),
+    (a, b) => a.join('|') === b.join('|'),
+  );
   const counts = useData((d) => `${d.tasks.length}|${d.events.length}`);
   const storage = useMeta((m) => m.storage);
   const [backups, setBackups] = useState<Backup[]>([]);
@@ -154,6 +158,24 @@ export function Settings() {
             <button type="button" className="item" onClick={() => openSheet('confirm', { title: 'サンプルを入れますか？', body: '車種・グループ・タスク・予定の例で置き換えます。直後なら「元に戻す」で戻せます。', ok: '入れる', run: () => replaceData(sampleData(), 'サンプルを入れました') })}>
               <Icon name="list" size={18} />
               <span>サンプルで試す</span>
+            </button>
+            <button
+              type="button"
+              className="item"
+              disabled={doneIds.length === 0}
+              onClick={() =>
+                openSheet('confirm', {
+                  title: `完了したタスク ${doneIds.length}件を削除しますか？`,
+                  body: '完了にしたタスクをまとめて消します（作成済みの報告書の中身は変わりません。報告書は「更新」で取り直せます）。直後なら「元に戻す」で戻せます。',
+                  ok: '削除する',
+                  danger: true,
+                  run: () => commit((d) => deleteTasks(d, doneIds), { undoable: true, toast: `完了したタスク ${doneIds.length}件を削除しました` }),
+                })
+              }
+            >
+              <Icon name="check" size={18} />
+              <span className="grow">完了したタスクを削除</span>
+              <span className="micro num">{doneIds.length}件</span>
             </button>
             <button type="button" className="item" style={{ color: 'var(--red)' }} onClick={() => openSheet('confirm', { title: 'すべて削除しますか？', body: 'タスク・予定・チェックリスト・車種をすべて消します。直後なら「元に戻す」で戻せます。', ok: '削除する', danger: true, run: () => replaceData({ ...emptyData(), settings: s }, 'すべて削除しました') })}>
               <Icon name="trash" size={18} />

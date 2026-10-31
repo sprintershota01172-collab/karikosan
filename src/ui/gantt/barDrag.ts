@@ -200,9 +200,11 @@ export function attachBarDrag(root: HTMLElement, scroller: HTMLElement, geom: ()
   };
 
   root.addEventListener('touchstart', onTouchStart, { passive: true });
-  window.addEventListener('touchmove', onTouchMove, { passive: false });
-  window.addEventListener('touchend', onTouchEnd, { passive: false });
-  window.addEventListener('touchcancel', () => finish(false));
+  // タッチの移動は、この領域で始まったタッチだけ受け取る（window に置くと、画面のどこをスクロールしても毎回この処理を待つため、スクロールがカクつく）
+  root.addEventListener('touchmove', onTouchMove, { passive: false });
+  root.addEventListener('touchend', onTouchEnd, { passive: false });
+  const onTouchCancel = () => finish(false);
+  root.addEventListener('touchcancel', onTouchCancel);
   root.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
@@ -213,8 +215,9 @@ export function attachBarDrag(root: HTMLElement, scroller: HTMLElement, geom: ()
     finish(false);
     clear();
     root.removeEventListener('touchstart', onTouchStart);
-    window.removeEventListener('touchmove', onTouchMove);
-    window.removeEventListener('touchend', onTouchEnd);
+    root.removeEventListener('touchmove', onTouchMove);
+    root.removeEventListener('touchend', onTouchEnd);
+    root.removeEventListener('touchcancel', onTouchCancel);
     root.removeEventListener('pointerdown', onPointerDown);
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);

@@ -140,6 +140,8 @@ export interface Settings {
 export interface ReportRow {
   /** v = 車種、g = グループ、t = タスク */
   kind: 'v' | 'g' | 't';
+  /** 元のタスク・グループ・車種の id（古い報告では空） */
+  id: string;
   depth: number;
   title: string;
   color: string;

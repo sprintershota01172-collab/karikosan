@@ -207,6 +207,7 @@ export function migrate(raw: unknown): AppData {
         .map(
           (x): ReportRow => ({
             kind: x.kind === 'v' || x.kind === 'g' ? x.kind : 't',
+            id: str(x.id),
             depth: Math.max(0, Math.min(3, Math.round(num(x.depth)))),
             title: str(x.title),
             color: str(x.color, '#9299A3'),

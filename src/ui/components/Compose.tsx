@@ -32,14 +32,19 @@ export function closeCompose() {
   current = null;
   uiAtom.set((u) => ({ ...u, compose: null }));
   input?.blur();
+  clearDraft?.();
 }
+let clearDraft: (() => void) | null = null;
 
 export function Compose() {
   const c = useUI((u) => u.compose);
   const [v, setV] = useState('');
+  const vRef = useRef('');
+  vRef.current = v;
   const box = useRef<HTMLFormElement | null>(null);
+  clearDraft = () => setV('');
   const submit = () => {
-    const t = v.trim();
+    const t = vRef.current.trim();
     if (!t || !current) return;
     current.onAdd(t);
     setV('');
@@ -58,9 +63,12 @@ export function Compose() {
         }}
         onKeyDown={(e: KeyboardEvent) => e.key === 'Escape' && closeCompose()}
         onBlur={() =>
-          // キーボードの「完了」などで入力欄から離れたら閉じる（追加ボタンを押したときは閉じない）
+          // キーボードの「✓（完了）」などで入力欄から離れたら、打った文字を追加してから閉じる
+          // （追加ボタンはフォーカスを外さないので閉じない。「×」と背景のタップは打った文字を捨てて閉じる）
           setTimeout(() => {
-            if (uiAtom.get().compose && !box.current?.contains(document.activeElement)) closeCompose();
+            if (!uiAtom.get().compose || box.current?.contains(document.activeElement)) return;
+            if (vRef.current.trim()) submit();
+            closeCompose();
           }, 0)
         }
       >

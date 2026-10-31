@@ -1,10 +1,14 @@
 /**
  * 車種の切り替え（ワンタップ）。横に入りきらない分は「他N」にまとめ、横スクロールはさせない。
+ * 長押しして横に動かすと並び順を変えられる（タスク・ガント・大日程の車種の順番も同じに変わる）。
+ * 長押ししたまま離すと、車種のメニュー（編集・並び順・削除）。
  */
-import React, { useLayoutEffect, useRef, useState } from 'react';
-import { setSettings } from '../../model/actions';
-import { commit, openSheet, useData } from '../../store/store';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { setSettings, setVehicleOrder } from '../../model/actions';
+import { commit, getData, openSheet, toast, useData } from '../../store/store';
+import { attachSortable } from '../drag/sortable';
 import { Icon } from '../icons';
+import { vehicleMenu } from '../sheets';
 
 export function VehicleChips() {
   const vehicles = useData((d) => d.vehicles);
@@ -37,6 +41,20 @@ export function VehicleChips() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [list.length, list.map((v) => v.name).join('|')]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return attachSortable(el, {
+      scroller: el,
+      axis: 'x',
+      onHold: (key) => vehicleMenu(key),
+      onDrop: (_k, _g, keys) => {
+        const rest = [...getData().vehicles].sort((a, b) => a.order - b.order).map((v) => v.id).filter((id) => !keys.includes(id));
+        commit((d) => setVehicleOrder(d, [...keys, ...rest]));
+        toast('車種の並び順を変えました');
+      },
+    });
+  }, []);
   const set = (v: string) => commit((d) => setSettings(d, { vehicle: v }), { undoable: false });
   const shown = list.slice(0, fit);
   const hidden = list.slice(fit);
@@ -47,7 +65,7 @@ export function VehicleChips() {
         すべて
       </button>
       {shown.map((v) => (
-        <button key={v.id} type="button" className="chip" data-vchip aria-pressed={cur === v.id ? 'true' : 'false'} onClick={() => set(v.id)}>
+        <button key={v.id} type="button" className="chip" data-vchip data-sort-key={v.id} data-sort-group="vchips" aria-pressed={cur === v.id ? 'true' : 'false'} onClick={() => set(v.id)}>
           <i className="dot" style={{ background: v.color }} />
           <span>{v.name}</span>
         </button>

@@ -22,14 +22,14 @@ export function snapshotRows(d: AppData, vehicleId: ID | 'all', day: DateStr): R
   const rows = buildRows(open, { vehicle: vehicleId, sortMode: 'manual', showDone: true, status: 'all', assignee: null, query: '', today: day });
   const gById = new Map(d.groups.map((g) => [g.id, g]));
   const out: ReportRow[] = [];
-  const base = { start: null, due: null, progress: 0, done: false, doneAt: null, level: 0, assignee: '', where: '', total: 0, doneCount: 0, overdue: 0 };
+  const base = { id: '', start: null, due: null, progress: 0, done: false, doneAt: null, level: 0, assignee: '', where: '', total: 0, doneCount: 0, overdue: 0 };
   for (const r of rows) {
     if (r.kind === 'vehicle' || r.kind === 'pinned') {
       const s = r.stats;
-      out.push({ ...base, kind: 'v', depth: 0, title: r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし', color: r.kind === 'pinned' ? NAVY : r.vehicle?.color ?? '#9299A3', start: s.start, due: s.end, progress: s.progress, total: s.total, doneCount: s.done, overdue: s.overdue });
+      out.push({ ...base, id: r.kind === 'pinned' ? 'pinned' : r.vehicle?.id ?? '-', kind: 'v', depth: 0, title: r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし', color: r.kind === 'pinned' ? NAVY : r.vehicle?.color ?? '#9299A3', start: s.start, due: s.end, progress: s.progress, total: s.total, doneCount: s.done, overdue: s.overdue });
     } else if (r.kind === 'group') {
       const s = r.stats;
-      out.push({ ...base, kind: 'g', depth: r.depth + (vehicleId === 'all' ? 1 : 0), title: r.group.name, color: r.vehicle?.color ?? NAVY, start: s.start, due: s.end, progress: s.progress, total: s.total, doneCount: s.done, overdue: s.overdue });
+      out.push({ ...base, id: r.group.id, kind: 'g', depth: r.depth + (vehicleId === 'all' ? 1 : 0), title: r.group.name, color: r.vehicle?.color ?? NAVY, start: s.start, due: s.end, progress: s.progress, total: s.total, doneCount: s.done, overdue: s.overdue });
     } else if (r.kind === 'task') {
       const t = r.task;
       const g = t.groupId ? gById.get(t.groupId) : null;
@@ -37,6 +37,7 @@ export function snapshotRows(d: AppData, vehicleId: ID | 'all', day: DateStr): R
       const where = [r.vehicle?.name, p?.name, g?.name].filter(Boolean).join(' › ');
       out.push({
         ...base,
+        id: t.id,
         kind: 't',
         depth: r.depth + (vehicleId === 'all' ? 1 : 0),
         title: t.title || '無題',
@@ -99,6 +100,29 @@ export function createReport(d: AppData, vehicleId: ID | 'all', day: DateStr): {
 export function updateReport(d: AppData, id: ID, patch: Partial<Pick<Report, 'issues' | 'note'>>): AppData {
   const now = Date.now();
   return { ...d, reports: d.reports.map((r) => (r.id === id ? { ...r, ...patch, updatedAt: now } : r)), updatedAt: now };
+}
+
+/** 報告の数字を、写した行から数え直す（行を外したとき） */
+export function recount(r: Report): Report {
+  const day = toDay(r.date);
+  const tasks = r.rows.filter((x) => x.kind === 't');
+  const avg = (xs: ReportRow[]) => (xs.length ? Math.round(xs.reduce((a, x) => a + x.progress, 0) / xs.length) : 0);
+  const rows = r.rows.map((x, i) => {
+    if (x.kind === 't') return x;
+    const kids: ReportRow[] = [];
+    for (let j = i + 1; j < r.rows.length && r.rows[j].depth > x.depth; j++) if (r.rows[j].kind === 't') kids.push(r.rows[j]);
+    const starts = kids.map((k) => k.start).filter((v): v is string => !!v).sort();
+    const ends = kids.map((k) => k.due).filter((v): v is string => !!v).sort();
+    return { ...x, total: kids.length, doneCount: kids.filter((k) => k.done).length, overdue: kids.filter((k) => k.overdue).length, progress: avg(kids), start: starts[0] ?? null, due: ends[ends.length - 1] ?? null };
+  });
+  const soon = tasks.filter((t) => !t.done && t.due && toDay(t.due) >= day && toDay(t.due) <= day + 7).length;
+  return { ...r, rows, total: tasks.length, done: tasks.filter((t) => t.done).length, overdue: tasks.filter((t) => t.overdue).length, soon, progress: avg(tasks) };
+}
+
+/** 間違えて入れたタスクなどを、報告から外す（行の番号で指定。数字も数え直す） */
+export function excludeRow(d: AppData, id: ID, index: number): AppData {
+  const now = Date.now();
+  return { ...d, reports: d.reports.map((r) => (r.id === id ? { ...recount({ ...r, rows: r.rows.filter((_, i) => i !== index) }), updatedAt: now } : r)), updatedAt: now };
 }
 
 export const deleteReport = (d: AppData, id: ID): AppData => ({ ...d, reports: d.reports.filter((r) => r.id !== id), updatedAt: Date.now() });

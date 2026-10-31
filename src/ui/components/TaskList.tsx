@@ -15,6 +15,7 @@ import { Icon } from '../icons';
 import { Check, PrioBadge, Reveal } from './bits';
 import { SwipeRow } from './Swipe';
 import { revealIn } from '../reveal';
+import { taskMenu } from '../sheets';
 
 export function dueLabel(t: Task, day = today()) {
   if (!t.due) return { text: '', cls: '' };
@@ -159,6 +160,7 @@ export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | 
     return attachSortable(root.current, {
       scroller: scroller.current,
       onState: (k) => k && setUI({ selected: null }),
+      onHold: (key) => taskMenu(key),
       onDrop: (_key, group, keys) => {
         let switched = false;
         commit((d) => {
