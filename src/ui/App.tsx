@@ -11,6 +11,7 @@ import { Home } from './screens/Home';
 import { shortDate, today } from '../model/dates';
 import { FONT_PX, Settings } from './screens/Settings';
 import { Tasks } from './screens/Tasks';
+import { makeReport } from './screens/Report';
 import { SHEETS } from './sheets';
 
 const META: Record<Tab, { label: string; icon: string; title: string }> = {
@@ -235,8 +236,12 @@ export function App() {
           <span className="ellipsis">{m.title}</span>
           {tab === 'home' && <small className="num">{shortDate(today())}</small>}
         </h1>
- <OfflineBadge />
+        <OfflineBadge />
         <span className="save-dot" data-s={save} aria-label={save === 'saved' ? '保存済み' : save === 'saving' ? '保存中' : '保存に失敗'} title={save === 'saved' ? '保存済み' : '保存中'} />
+        <button type="button" className="rbtn" aria-label="報告書を作成" title="今の状況で報告書を作成（Excel にも出力できます）" onClick={makeReport}>
+          <Icon name="report" size={17} />
+          <span>報告</span>
+        </button>
         <button type="button" className="iconbtn" aria-label="元に戻す" disabled={!canUndo} onClick={undo}>
           <Icon name="undo" />
         </button>

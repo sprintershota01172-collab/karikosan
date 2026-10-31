@@ -40,6 +40,7 @@ import { revealIn } from './reveal';
 import { LEVEL, priorityOf, PRIORITY_CHOICES } from '../model/priority';
 import { Sheet } from './components/Sheet';
 import { Icon } from './icons';
+import { ReportSheet, ReportsSheet } from './screens/Report';
 
 export interface SheetProps {
   props: Record<string, unknown>;
@@ -1031,4 +1032,6 @@ export const SHEETS: Record<string, (p: SheetProps) => ReturnType<typeof Confirm
   plan: PlanSheet,
   quad: QuadSheet,
   order: OrderSheet,
+  report: ReportSheet,
+  reports: ReportsSheet,
 };

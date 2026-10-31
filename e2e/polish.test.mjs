@@ -51,7 +51,7 @@ describe('ガントの大項目（車種）', () => {
     await ctx.close();
   });
 
-  it('タスクがないとき、名前の列に日付の線が入り込まず、格子は下まで続く（日・週・月）', async () => {
+  it('タスクがないとき、名前の列に日付の線が入り込まず、空の格子を描かない（日・週・月）', async () => {
     const { ctx, page } = await open('iphone', { sample: false });
     await tab(page, 'gantt');
     for (const z of ['日', '週', '月']) {
@@ -68,13 +68,15 @@ describe('ガントの大項目（車種）', () => {
         const bad = [];
         if (Math.abs(c.left - corner.left) > 1 || Math.abs(c.right - corner.right) > 1) bad.push(`幅 ${c.left}-${c.right} / ${corner.left}-${corner.right}`);
         if (c.bottom < box.bottom - 2) bad.push(`下まで ${c.bottom} / ${box.bottom}`);
-        if (Number(getComputedStyle(col).zIndex) <= Number(getComputedStyle(document.querySelector('.gbg')).zIndex)) bad.push('重なり順');
         if (getComputedStyle(col).backgroundColor === 'rgba(0, 0, 0, 0)') bad.push('透明');
-        const body = document.querySelector('.gbody').getBoundingClientRect();
-        return { bad, fill: body.bottom >= box.bottom - 2 };
+        if (document.querySelector('.gbg')) bad.push('行がないのに格子を描いている');
+        const card = document.querySelector('.gantt').getBoundingClientRect();
+        const wrap = document.querySelector('.gwrap').getBoundingClientRect();
+        return { bad, small: card.height < wrap.height / 2, msg: !!document.querySelector('.gempty') };
       });
       assert.deepEqual(r.bad, [], z);
-      assert.ok(r.fill, `格子が下まで: ${z}`);
+      assert.ok(r.small, `枠は小さく: ${z}`);
+      assert.ok(r.msg, '案内を出す');
     }
     await ctx.close();
   });

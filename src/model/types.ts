@@ -136,6 +136,62 @@ export interface Settings {
   collapsedV: string[];
 }
 
+/** 状況報告の行（その時点の写し。あとでタスクを変えても報告は変わらない） */
+export interface ReportRow {
+  /** v = 車種、g = グループ、t = タスク */
+  kind: 'v' | 'g' | 't';
+  depth: number;
+  title: string;
+  color: string;
+  start: DateStr | null;
+  due: DateStr | null;
+  /** 0〜100（車種・グループは平均） */
+  progress: number;
+  done: boolean;
+  doneAt: number | null;
+  /** 優先度 1〜4（完了・見出しは 0） */
+  level: number;
+  assignee: string;
+  /** 車種・グループの名前（タスクの所属） */
+  where: string;
+  /** 見出し: 件数・完了数・遅れの数 */
+  total: number;
+  doneCount: number;
+  overdue: number;
+}
+
+/** 課題（前回の報告から引き継ぐ） */
+export interface ReportIssue {
+  id: ID;
+  text: string;
+  /** open = 対応中、closed = 解決 */
+  status: 'open' | 'closed';
+  /** 最初に挙げた日 */
+  since: DateStr;
+}
+
+/** 状況報告（その日の状況の写しと、課題・所感） */
+export interface Report {
+  id: ID;
+  date: DateStr;
+  createdAt: number;
+  updatedAt: number;
+  /** 対象の車種（'all' = すべて）と、その名前 */
+  vehicleId: ID | 'all';
+  scope: string;
+  total: number;
+  done: number;
+  overdue: number;
+  /** 7日以内の期限（未完了） */
+  soon: number;
+  /** 進捗率（0〜100） */
+  progress: number;
+  rows: ReportRow[];
+  issues: ReportIssue[];
+  /** 所感・連絡事項 */
+  note: string;
+}
+
 export interface AppData {
   schema: number;
   vehicles: Vehicle[];
@@ -145,6 +201,8 @@ export interface AppData {
   checklists: Checklist[];
   /** 大日程 */
   plans: PlanEvent[];
+  /** 状況報告（新しい順） */
+  reports: Report[];
   settings: Settings;
   updatedAt: number;
 }

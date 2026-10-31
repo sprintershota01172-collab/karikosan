@@ -5,6 +5,7 @@ import { addTask, hideToday, postpone, setSettings, unhideToday } from '../../mo
 import { addDays, shortDate, today } from '../../model/dates';
 import { comparePriority, LEVEL, priorityOf } from '../../model/priority';
 import { occurrences } from '../../model/recur';
+import { reportStats } from '../../model/report';
 import { todayList } from '../../model/rows';
 import type { AppData, ID, Task } from '../../model/types';
 import { commit, openSheet, setTab, setUI, useData } from '../../store/store';
@@ -16,6 +17,52 @@ import { completeTask, dueLabel, removeTask } from '../components/TaskList';
 import { Icon } from '../icons';
 import { vehicleColor } from '../view';
 import { QuickAdd } from './Tasks';
+import { makeReport } from './Report';
+
+/** いまの状況（進捗・遅れ・7日以内の期限）と、ワンタップの報告書 */
+function StatusCard() {
+  const data = useData((d) => d);
+  const day = today();
+  const vehicle = data.settings.vehicle;
+  const s = useMemo(() => reportStats(data, vehicle, day), [data, vehicle, day]);
+  const last = data.reports.find((r) => r.vehicleId === vehicle) ?? null;
+  return (
+    <div className="status" data-testid="status">
+      <div className="st-main">
+        <span className="st-l">進捗</span>
+        <span className="st-v num">
+          {s.progress}
+          <small>%</small>
+        </span>
+        <span className="st-bar">
+          <i style={{ width: `${s.progress}%` }} />
+        </span>
+      </div>
+      <div className="st-sub">
+        <span className={`st-n${s.overdue ? ' bad' : ''}`}>
+          <b className="num">{s.overdue}</b>遅れ
+        </span>
+        <span className="st-n">
+          <b className="num">{s.soon}</b>7日以内
+        </span>
+        <span className="st-n">
+          <b className="num">
+            {s.done}
+            <small>/{s.total}</small>
+          </b>
+          完了
+        </span>
+      </div>
+      <button type="button" className="st-btn" onClick={makeReport} aria-label="報告書を作成">
+        <Icon name="report" size={18} />
+        <span>
+          報告書
+          <small className="num">{last ? `前回 ${shortDate(last.date, false)}` : 'ワンタップで作成'}</small>
+        </span>
+      </button>
+    </div>
+  );
+}
 
 /** 左へスワイプすると「延期」「除外」「削除」が出る行。大きくスワイプすると削除 */
 function SwipeTask({ t, color, edge = '' }: { t: Task; color: string; edge?: string }) {
@@ -56,7 +103,9 @@ function TodayView() {
     const f = (t: Task) => vehicle === 'all' || t.vehicleId === vehicle;
     return { list: r.list.filter(f), hidden: r.hidden.filter(f) };
   }, [data, day, vehicle]);
-  const events = useMemo(() => occurrences(data, day, addDays(day, 6), vehicle).slice(0, 12), [data, day, vehicle]);
+  const allEvents = useMemo(() => occurrences(data, day, addDays(day, 6), vehicle), [data, day, vehicle]);
+  // 予定は直近の4件だけ（残りはカレンダーで）
+  const events = allEvents.slice(0, 4);
   const [showHidden, setShowHidden] = useState(false);
   const taskBox = useRef<HTMLDivElement | null>(null);
   // 優先度ごとに区切る（至急 → 高 → 中 → 低。todayList は優先度の高い順）
@@ -82,23 +131,23 @@ function TodayView() {
   const eventBox = useRef<HTMLDivElement | null>(null);
   return (
     <>
+      <StatusCard />
       <div className="section-head">
-        <span className="emo" data-e="✅" aria-hidden="true" />
         <span>今日のタスク</span>
-        <span className="count num">{list.length}件</span>
+        <span className="count num">{list.length}</span>
         <span className="grow" />
       </div>
-      <div className="scroll" style={{ flex: '0 1 auto', maxHeight: '58%' }} ref={taskBox}>
+      <div className="scroll" style={{ flex: '0 1 auto', maxHeight: '52%' }} ref={taskBox}>
         {list.length === 0 && (
           <div className="empty" style={{ padding: '1.25rem 1rem' }}>
-            <div data-e="🎉">今日が期限・期間中のタスクはありません</div>
+            <div>今日が期限・期間中のタスクはありません</div>
           </div>
         )}
         {sections.map((x) =>
           'head' in x ? (
             <div key={x.key} className={`prow small p${x.head}`} data-flip={x.key}>
               <span className="ptag">{LEVEL[x.head].label}</span>
-              <span className="num pcount">{x.n}件</span>
+              <span className="num pcount">{x.n}</span>
             </div>
           ) : (
             x.el
@@ -127,17 +176,16 @@ function TodayView() {
         )}
       </div>
       <div className="section-head">
-        <span className="emo" data-e="📅" aria-hidden="true" />
         <span>直近の予定</span>
-        <span className="count num">{events.length}件</span>
+        <span className="count num">{allEvents.length}</span>
         <span className="grow" />
-        <button type="button" className="btn small ghost" onClick={() => setTab('calendar')}>
-          カレンダー
+        <button type="button" className="btn small ghost link" onClick={() => setTab('calendar')}>
+          {allEvents.length > events.length ? `すべて` : 'カレンダー'}
           <Icon name="right" size={16} />
         </button>
       </div>
       <div className="scroll" style={{ flex: '1' }} ref={eventBox}>
-        {events.length === 0 && <div className="empty" style={{ padding: '1rem' }}><div data-e="☕️">7日以内の予定はありません</div></div>}
+        {events.length === 0 && <div className="empty" style={{ padding: '1rem' }}><div>7日以内の予定はありません</div></div>}
         {events.map((o) => (
           <button key={o.key} type="button" className="erow" onClick={() => openSheet('event', { id: o.event.id })}>
             <span className="time num">

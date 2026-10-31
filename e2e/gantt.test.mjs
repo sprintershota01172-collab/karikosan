@@ -35,17 +35,34 @@ async function mouseDrag(page, x, y, dx, steps = 10) {
 
 describe('表示', () => {
   for (const size of ['se', 'iphone', 'max', 'ipad', 'pc']) {
-    it(`${size}: 1画面に20行入り、名前とバーの行が一致する`, async () => {
+    it(`${size}: 1画面に20行入り、枠は行の分だけ（下に空の格子を描かない）。横のスクロールバーは日付の部分の真下`, async () => {
       const { ctx, page } = await open(size);
       await tab(page, 'gantt');
       const r = await page.evaluate(() => {
-        const sc = document.querySelector('.gscroll');
+        const wrap = document.querySelector('.gwrap');
+        const card = document.querySelector('.gantt').getBoundingClientRect();
         const head = document.querySelector('.ghead').getBoundingClientRect().height;
-        const row = document.querySelector('.gline').getBoundingClientRect().height;
-        return { fits: (sc.clientHeight - head) / row, pageScroll: document.scrollingElement.scrollHeight - innerHeight };
+        const lines = [...document.querySelectorAll('.gline')];
+        const row = lines[0].getBoundingClientRect().height;
+        const last = lines[lines.length - 1].getBoundingClientRect();
+        const sb = document.querySelector('.sb-h').getBoundingClientRect();
+        const name = document.querySelector('.gcorner').getBoundingClientRect();
+        return {
+          fits: (wrap.clientHeight - head - 11) / row,
+          pageScroll: document.scrollingElement.scrollHeight - innerHeight,
+          below: card.bottom - last.bottom,
+          sb: { top: sb.top, bottom: sb.bottom, left: sb.left, right: sb.right },
+          card: { bottom: card.bottom, right: card.right },
+          nameRight: name.right,
+          rows: lines.length,
+        };
       });
       assert.ok(r.fits >= 19.5, `入る行数 ${r.fits.toFixed(1)}`);
       assert.ok(r.pageScroll <= 0, 'ページ全体はスクロールしない');
+      if (r.rows < 19) assert.ok(r.below <= 13, `最後の行の下は ${r.below}px（スクロールバーの分だけ）`);
+      assert.ok(r.sb.bottom <= r.card.bottom + 0.5 && r.sb.top >= r.card.bottom - 12, `スクロールバーは枠の中の下端 ${JSON.stringify(r.sb)} / ${r.card.bottom}`);
+      assert.ok(Math.abs(r.sb.left - r.nameRight) <= 1.5, `スクロールバーは日付の部分だけ ${r.sb.left} / ${r.nameRight}`);
+      assert.ok(r.sb.right <= r.card.right + 0.5);
       await ctx.close();
     });
   }

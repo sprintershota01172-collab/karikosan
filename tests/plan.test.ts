@@ -94,7 +94,7 @@ describe('車種を消しても大日程は残る・読み込み', () => {
     assert.equal(d.plans[0].vehicleId, null);
   });
   it('前の版（大日程なし）のデータは、空の大日程で読み込む。書き出して読み込むと同じ', () => {
-    assert.equal(SCHEMA, 2);
+    assert.equal(SCHEMA, 3);
     const old = JSON.parse(JSON.stringify(toExport(emptyData())));
     old.data.schema = 1;
     delete old.data.plans;

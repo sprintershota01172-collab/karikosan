@@ -12,7 +12,7 @@ import type { Task } from '../../model/types';
 import { commit, openSheet, setUI, toast, useUI } from '../../store/store';
 import { attachSortable } from '../drag/sortable';
 import { Icon } from '../icons';
-import { Check, PrioBadge, Reveal, Ring } from './bits';
+import { Check, PrioBadge, Reveal } from './bits';
 import { SwipeRow } from './Swipe';
 import { revealIn } from '../reveal';
 
@@ -103,8 +103,8 @@ function PrioHead({ r }: { r: Extract<Row, { kind: 'prio' }> }) {
   return (
     <div className={`prow p${r.level}`} data-flip={r.key} data-level={0}>
       <span className="ptag">{l ? l.label : '完了'}</span>
-      <span className="num pcount">{r.stats.total}件</span>
-      <span className="micro ellipsis grow">{l ? l.hint : ''}</span>
+      <span className="num pcount">{r.stats.total}</span>
+      <span className="grow" />
     </div>
   );
 }
@@ -134,7 +134,6 @@ function GroupHead({ r, selected }: { r: Extract<Row, { kind: 'group' }>; select
       <span className="stat num">
         {r.stats.done}/{r.stats.total}
       </span>
-      <Ring value={r.stats.total ? Math.round((r.stats.done / r.stats.total) * 100) : 0} size={child ? 16 : 18} color={r.vehicle?.color} />
       <button type="button" className="iconbtn" style={{ width: '2rem', height: '2rem' }} aria-label={`${g.name}のメニュー`} onClick={(e: MouseEvent) => (e.stopPropagation(), openSheet('group', { id: g.id }))}>
         <Icon name="more" size={18} />
       </button>

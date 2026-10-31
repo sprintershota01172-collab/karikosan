@@ -1,24 +1,31 @@
 /** ファイルの書き出し・共有、版の確認 */
 
-export async function shareOrDownload(filename: string, text: string): Promise<'shared' | 'saved' | 'cancelled'> {
+export const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** スマホは共有シート（メール・LINE・ファイルに保存など）、PC はダウンロード */
+export async function shareOrDownload(filename: string, body: string | Uint8Array, type = 'application/json', title = 'karikosan のデータ'): Promise<'shared' | 'saved' | 'cancelled'> {
   const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean; share?: (d: unknown) => Promise<void> };
+  const part = body as BlobPart;
   try {
-    const file = new File([text], filename, { type: 'application/json' });
+    const file = new File([part], filename, { type });
     if (nav.share && nav.canShare?.({ files: [file] }) && matchMedia('(pointer: coarse)').matches) {
-      await nav.share({ files: [file], title: 'karikosan のデータ' });
+      await nav.share({ files: [file], title });
       return 'shared';
     }
   } catch (e) {
     if ((e as { name?: string })?.name === 'AbortError') return 'cancelled';
   }
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const url = URL.createObjectURL(new Blob([part], { type }));
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  // すぐに消すと、ブラウザによってはファイル名が付かない
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 4000);
   return 'saved';
 }
 

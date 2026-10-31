@@ -15,6 +15,7 @@ import { Seg } from '../components/bits';
 import { VehicleChips } from '../components/VehicleChips';
 import { attachBarDrag } from '../gantt/barDrag';
 import { useLeftMonth, useSize } from '../gantt/Gantt';
+import { SB_PX, ScrollBars } from '../gantt/ScrollBars';
 import { Icon } from '../icons';
 
 /** 1週の幅（rem）: week = 1マス1週を広く、year = 1年を見渡す */
@@ -57,7 +58,7 @@ export function PlanScreen() {
             {LOAD_LEVEL_LABEL[l]}
           </span>
         ))}
-        <span className="micro grow ellipsis">週ごとのイベントの重み（小1・中2・大3）の合計</span>
+
       </div>
     </div>
   );
@@ -170,9 +171,9 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
   };
 
   // 枠の高さは中身に合わせる（下に大きな空白を作らない。入りきらないときは中でスクロール）
-  const contentH = g.headH + (rows.length + (vehicle !== 'all' ? 1 : 0)) * g.rowH + 2;
+  const contentH = g.headH + Math.max(2, rows.length + (vehicle !== 'all' ? 1 : 0)) * g.rowH;
   return (
-    <div className="gantt plan" ref={box} style={{ height: `${Math.max(contentH, g.headH + g.rowH * 2)}px` }}>
+    <div className="gantt plan" ref={box} style={{ height: `${contentH + SB_PX + 1}px` }}>
       {size.w > 0 && (
         <div className="gcorner pcorner" style={{ width: `${g.nameW}px`, height: `${g.headH}px` }}>
           <span className="cmonth num">{leftMonth}</span>
@@ -234,6 +235,7 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
           </div>
         </div>
       )}
+      {size.w > 0 && <ScrollBars scroller={scroller} left={g.nameW} top={g.headH} />}
     </div>
   );
 }
@@ -278,7 +280,7 @@ const PlanLine = memo(function PlanLine({ r, g, selected, onTrack }: { r: PlanRo
   );
 });
 
-function Bar({ p, g, selected, label, emoji }: { p: PlanEvent; g: Geom; selected: boolean; label: string; emoji: string }) {
+function Bar({ p, g, selected, label }: { p: PlanEvent; g: Geom; selected: boolean; label: string; emoji?: string }) {
   const left = diffDays(g.from, p.start) * g.dayW;
   const w = (diffDays(p.start, p.end) + 1) * g.dayW;
   return (
@@ -298,10 +300,7 @@ function Bar({ p, g, selected, label, emoji }: { p: PlanEvent; g: Geom; selected
         else setUI({ selected: p.id });
       }}
     >
-      <span className="plabel">
-        <span className="emo" data-e={emoji} aria-hidden="true" />
-        {label}
-      </span>
+      <span className="plabel">{label}</span>
       <div className="h l" data-handle="l" />
       <div className="h r" data-handle="r" />
     </div>

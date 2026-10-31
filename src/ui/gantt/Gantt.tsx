@@ -22,6 +22,7 @@ import { toggleGroup, useFlip } from '../components/TaskList';
 import { Icon } from '../icons';
 import { attachSortable } from '../drag/sortable';
 import { attachBarDrag } from './barDrag';
+import { SB_PX, ScrollBars } from './ScrollBars';
 
 /** 1日の幅（rem） */
 export const DAY_REM: Record<GanttZoom, number> = { day: 1.75, week: 0.75, month: 0.3 };
@@ -225,64 +226,69 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
           backgroundPosition: `${zoom === 'week' ? firstMon * geom.dayW : 0}px 0`,
         };
 
+  // 枠の高さは行の分だけ（行より下に格子を描かない）。入りきらないときは中で縦にスクロール
+  const bodyH = rows.length ? rows.length * geom.rowH : 6 * rootPx();
+  const cardH = Math.min(size.h, headH + bodyH + SB_PX + 1);
+
   return (
-    <>
-    <div className="gantt" ref={box} style={{ ['--row' as string]: `${geom.rowH}px` }}>
+    <div className="gwrap" ref={box} style={{ ['--row' as string]: `${geom.rowH}px` }}>
       {size.w > 0 && (
-        <div className="gcorner" style={{ width: `${geom.nameW}px`, height: `${headH}px` }}>
-          <span className="cmonth num">{leftMonth}</span>
-          <span>項目</span>
-        </div>
-      )}
-      {size.w > 0 && (
-        <div className="gscroll" ref={scroller} data-testid="gantt-scroll">
-          <div className="gcontent" style={{ width: `${width}px` }}>
-            <div className="ghead" style={{ height: `${headH}px`, width: `${width}px` }}>
-              <div className="gspacer" style={{ width: `${geom.nameW}px` }} />
-              <div className="gdays" style={{ width: `${geom.days * geom.dayW}px`, height: `${headH}px` }}>
-                {months.map((m) => (
-                  <div key={m.left} className="gmonth" style={{ left: `${m.left}px`, width: `${m.width}px` }}>
-                    {m.width >= rootPx() * 4 && <span>{m.label}</span>}
-                  </div>
-                ))}
-                {zoom !== 'month' &&
-                  Array.from({ length: geom.days }, (_, i) => {
-                    const d = addDays(geom.from, i);
-                    if (zoom === 'week' && new Date(`${d}T00:00:00Z`).getUTCDay() !== 1) return null;
-                    const we = isWeekend(d);
-                    return (
-                      <div key={i} className={`gday${we && zoom === 'day' ? ' we' : ''}${d === day ? ' today' : ''}`} style={{ left: `${i * geom.dayW}px`, width: `${zoom === 'week' ? geom.dayW * 7 : geom.dayW}px`, justifyContent: zoom === 'week' ? 'flex-start' : 'center' }}>
-                        {Number(d.slice(8, 10))}
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-            <div className="gbody" ref={body} style={{ position: 'relative', minHeight: `${Math.max(0, size.h - headH - 1)}px` }}>
-              {/* 名前の列の地（行がない所でも、日付の線が名前の列に入り込まない） */}
-              <div className="gnamecol" style={{ width: `${geom.nameW}px`, height: `${Math.max(size.h - headH - 1, rows.length * geom.rowH)}px`, marginBottom: `-${Math.max(size.h - headH - 1, rows.length * geom.rowH)}px` }} />
-              <div className="gbg" style={{ left: `${geom.nameW}px`, width: `${geom.days * geom.dayW}px` }}>
-                {zoom !== 'month' && weekends.map((i) => <div key={i} className="we" style={{ left: `${i * geom.dayW}px`, width: `${geom.dayW}px` }} />)}
-                <div className="ggrid" style={grid} />
-                {months.map((m) => (
-                  <div key={m.left} className="gmline" style={{ left: `${m.left}px` }} />
-                ))}
-                <div className="now" style={{ left: `${x(day) + geom.dayW / 2 - 1}px` }} />
-              </div>
-              {rows.map((r) => (
-                <GanttRow key={r.key} r={r} geom={geom} selected={r.kind === 'task' ? selected === r.task.id : selected === r.key} color={r.kind === 'task' ? vColor.get(r.task.vehicleId ?? '') ?? 'var(--green)' : r.kind === 'group' ? r.vehicle?.color ?? 'var(--navy)' : 'var(--navy)'} day={day} />
-              ))}
-              {rows.length === 0 && (
-                <div className="empty gempty" style={{ position: 'sticky', left: 0, width: `${size.w}px` }}>
-                  <div data-e="📊">タスクを追加すると、ここに工程が並びます</div>
+        <div className="gantt" style={{ height: `${cardH}px` }}>
+          <div className="gcorner" style={{ width: `${geom.nameW}px`, height: `${headH}px` }}>
+            <span className="cmonth num">{leftMonth}</span>
+            <span>項目</span>
+          </div>
+          <div className="gscroll" ref={scroller} data-testid="gantt-scroll">
+            <div className="gcontent" style={{ width: `${width}px` }}>
+              <div className="ghead" style={{ height: `${headH}px`, width: `${width}px` }}>
+                <div className="gspacer" style={{ width: `${geom.nameW}px` }} />
+                <div className="gdays" style={{ width: `${geom.days * geom.dayW}px`, height: `${headH}px` }}>
+                  {months.map((m) => (
+                    <div key={m.left} className="gmonth" style={{ left: `${m.left}px`, width: `${m.width}px` }}>
+                      {m.width >= rootPx() * 4 && <span>{m.label}</span>}
+                    </div>
+                  ))}
+                  {zoom !== 'month' &&
+                    Array.from({ length: geom.days }, (_, i) => {
+                      const d = addDays(geom.from, i);
+                      if (zoom === 'week' && new Date(`${d}T00:00:00Z`).getUTCDay() !== 1) return null;
+                      const we = isWeekend(d);
+                      return (
+                        <div key={i} className={`gday${we && zoom === 'day' ? ' we' : ''}${d === day ? ' today' : ''}`} style={{ left: `${i * geom.dayW}px`, width: `${zoom === 'week' ? geom.dayW * 7 : geom.dayW}px`, justifyContent: zoom === 'week' ? 'flex-start' : 'center' }}>
+                          {Number(d.slice(8, 10))}
+                        </div>
+                      );
+                    })}
                 </div>
-              )}
+              </div>
+              <div className="gbody" ref={body} style={{ position: 'relative', height: `${bodyH}px` }}>
+                {/* 名前の列の地（日付の線が名前の列に入り込まない） */}
+                <div className="gnamecol" style={{ width: `${geom.nameW}px`, height: `${bodyH}px`, marginBottom: `-${bodyH}px` }} />
+                {rows.length > 0 && (
+                  <div className="gbg" style={{ left: `${geom.nameW}px`, width: `${geom.days * geom.dayW}px` }}>
+                    {zoom !== 'month' && weekends.map((i) => <div key={i} className="we" style={{ left: `${i * geom.dayW}px`, width: `${geom.dayW}px` }} />)}
+                    <div className="ggrid" style={grid} />
+                    {months.map((m) => (
+                      <div key={m.left} className="gmline" style={{ left: `${m.left}px` }} />
+                    ))}
+                    <div className="now" style={{ left: `${x(day) + geom.dayW / 2 - 1}px` }} />
+                  </div>
+                )}
+                {rows.map((r) => (
+                  <GanttRow key={r.key} r={r} geom={geom} selected={r.kind === 'task' ? selected === r.task.id : selected === r.key} color={r.kind === 'task' ? vColor.get(r.task.vehicleId ?? '') ?? 'var(--green)' : r.kind === 'group' ? r.vehicle?.color ?? 'var(--navy)' : 'var(--navy)'} day={day} />
+                ))}
+                {rows.length === 0 && (
+                  <div className="empty gempty" style={{ position: 'sticky', left: 0, width: `${size.w}px`, height: `${bodyH}px` }}>
+                    <div data-e="📊">タスクを追加すると、ここに工程が並びます</div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+          <ScrollBars scroller={scroller} left={geom.nameW} top={headH} />
         </div>
       )}
     </div>
-    </>
   );
 }
 
@@ -304,7 +310,7 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
           </span>
           <span style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', background: color, flex: 'none' }} />
           <Reveal text={r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし'} />
-          <span className="num micro" style={{ marginLeft: 'auto', flex: 'none' }}>
+          <span className="num micro gcount">
             {s.done}/{s.total}
           </span>
         </div>
@@ -320,9 +326,7 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
       <div className={`gline prio p${r.level}`} data-flip={r.key} data-level={0} style={{ height: h }}>
         <div className="gname v" style={{ width: `${geom.nameW}px`, height: h }}>
           <span className="ptag">{l ? l.label : '完了'}</span>
-          <span className="num micro" style={{ marginLeft: 'auto', flex: 'none' }}>
-            {r.stats.total}件
-          </span>
+          <span className="num micro gcount">{r.stats.total}</span>
         </div>
         <div className="gtrack" style={{ width: trackW, height: h }} />
       </div>
@@ -348,7 +352,7 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
             <Icon name="down" size={12} />
           </span>
           <Reveal text={r.group.name} />
-          <span className="num micro" style={{ marginLeft: 'auto', flex: 'none' }}>
+          <span className="num micro gcount">
             {s.done}/{s.total}
           </span>
         </div>

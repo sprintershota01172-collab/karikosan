@@ -3,10 +3,10 @@
  * 保存データは SCHEMA の番号つき。古い番号のデータは migrate() で今の形に直してから使う。
  */
 import { isDateStr } from './dates';
-import type { AppData, CalEvent, Checklist, Group, PlanEvent, Settings, Task, Vehicle } from './types';
+import type { AppData, CalEvent, Checklist, Group, PlanEvent, Report, ReportIssue, ReportRow, Settings, Task, Vehicle } from './types';
 
-/** 2: 大日程（plans）を追加 */
-export const SCHEMA = 2;
+/** 2: 大日程（plans）を追加、3: 状況報告（reports）を追加 */
+export const SCHEMA = 3;
 export const APP_ID = 'karikosan';
 
 export const VEHICLE_COLORS = ['#3D7469', '#3B6EA8', '#B7791F', '#8E5BA8', '#C2554A', '#4F8A9E', '#6B7A3A', '#9299A3'];
@@ -17,7 +17,7 @@ export const uid = (p = 'id'): string => `${p}_${Date.now().toString(36)}${(seq+
 export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', oneGroup: true, planZoom: 'week', homeMode: 'today', quadBy: 'priority', quadGroups: [null, null, null, null], quadNames: { priority: ['', '', '', ''], group: ['', '', '', ''] }, collapsedV: [] });
 
 export function emptyData(): AppData {
-  return { schema: SCHEMA, vehicles: [], groups: [], tasks: [], events: [], checklists: [], plans: [], settings: defaultSettings(), updatedAt: Date.now() };
+  return { schema: SCHEMA, vehicles: [], groups: [], tasks: [], events: [], checklists: [], plans: [], reports: [], settings: defaultSettings(), updatedAt: Date.now() };
 }
 
 export function newTask(p: Partial<Task> & { title: string }): Task {
@@ -187,6 +187,50 @@ export function migrate(raw: unknown): AppData {
       };
     });
 
+  const reports: Report[] = arr(src.reports)
+    .filter(isObj)
+    .filter((r) => isDateStr(r.date) && okId(r.id))
+    .map((r) => ({
+      id: r.id as string,
+      date: r.date as string,
+      createdAt: num(r.createdAt, Date.now()),
+      updatedAt: num(r.updatedAt, num(r.createdAt, Date.now())),
+      vehicleId: typeof r.vehicleId === 'string' && r.vehicleId ? r.vehicleId : 'all',
+      scope: str(r.scope, 'すべて'),
+      total: num(r.total),
+      done: num(r.done),
+      overdue: num(r.overdue),
+      soon: num(r.soon),
+      progress: Math.max(0, Math.min(100, num(r.progress))),
+      rows: arr(r.rows)
+        .filter(isObj)
+        .map(
+          (x): ReportRow => ({
+            kind: x.kind === 'v' || x.kind === 'g' ? x.kind : 't',
+            depth: Math.max(0, Math.min(3, Math.round(num(x.depth)))),
+            title: str(x.title),
+            color: str(x.color, '#9299A3'),
+            start: date(x.start),
+            due: date(x.due),
+            progress: Math.max(0, Math.min(100, num(x.progress))),
+            done: bool(x.done),
+            doneAt: typeof x.doneAt === 'number' ? x.doneAt : null,
+            level: Math.max(0, Math.min(4, Math.round(num(x.level)))),
+            assignee: str(x.assignee),
+            where: str(x.where),
+            total: num(x.total),
+            doneCount: num(x.doneCount),
+            overdue: num(x.overdue),
+          }),
+        ),
+      issues: arr(r.issues)
+        .filter(isObj)
+        .filter((x) => typeof x.id === 'string' && x.id)
+        .map((x): ReportIssue => ({ id: x.id as string, text: str(x.text), status: x.status === 'closed' ? 'closed' : 'open', since: date(x.since) ?? (r.date as string) })),
+      note: str(r.note),
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+
   const s = isObj(src.settings) ? src.settings : {};
   const d = defaultSettings();
   const settings: Settings = {
@@ -211,7 +255,7 @@ export function migrate(raw: unknown): AppData {
     }),
   };
 
-  return { schema: SCHEMA, vehicles, groups, tasks, events, checklists, plans, settings, updatedAt: num(src.updatedAt, Date.now()) };
+  return { schema: SCHEMA, vehicles, groups, tasks, events, checklists, plans, reports, settings, updatedAt: num(src.updatedAt, Date.now()) };
 }
 
 export interface ExportFile {

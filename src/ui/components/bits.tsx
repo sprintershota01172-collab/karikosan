@@ -78,7 +78,7 @@ export function Field({ label, children }: { label: string; children?: ReactNode
 }
 
 /** 入力中は手元の値を持ち、確定（離れる・Enter）で保存する文字入力 */
-export function TextInput({ value, onCommit, placeholder, autoFocus, multiline, id, onEnter }: { value: string; onCommit: (v: string) => void; placeholder?: string; autoFocus?: boolean; multiline?: boolean; id?: string; onEnter?: () => void }) {
+export function TextInput({ value, onCommit, placeholder, autoFocus, multiline, id, onEnter, label }: { value: string; onCommit: (v: string) => void; placeholder?: string; autoFocus?: boolean; multiline?: boolean; id?: string; onEnter?: () => void; label?: string }) {
   const [v, setV] = useState(value);
   const last = useRef(value);
   useEffect(() => {
@@ -95,6 +95,7 @@ export function TextInput({ value, onCommit, placeholder, autoFocus, multiline, 
   };
   const common = {
     id,
+    'aria-label': label,
     className: 'inp',
     value: v,
     placeholder,

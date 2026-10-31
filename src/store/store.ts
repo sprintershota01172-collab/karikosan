@@ -223,3 +223,4 @@ export const useUI = <S>(sel: (u: UI) => S, eq?: (a: S, b: S) => boolean) => use
 export const useMeta = <S>(sel: (m: ReturnType<typeof metaAtom.get>) => S) => useAtom(metaAtom, sel);
 
 export const getUI = () => uiAtom.get();
+export const getData = () => dataAtom.get();
