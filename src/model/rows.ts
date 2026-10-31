@@ -19,8 +19,9 @@ export interface Stats {
 }
 
 export type Row =
-  | { kind: 'vehicle'; key: string; vehicle: Vehicle | null; stats: Stats }
-  | { kind: 'pinned'; key: string; stats: Stats }
+  /** open: 中身を出しているか（大項目の折りたたみ） */
+  | { kind: 'vehicle'; key: string; vehicle: Vehicle | null; stats: Stats; open: boolean }
+  | { kind: 'pinned'; key: string; stats: Stats; open: boolean }
   /** open: 中身を出しているか（絞り込み中は折りたたんでいても該当するタスクを出す） */
   | { kind: 'group'; key: string; group: Group; depth: 0 | 1; stats: Stats; vehicle: Vehicle | null; open: boolean }
   /** 優先度別の見出し（level 0 = 完了） */
@@ -208,7 +209,9 @@ export function buildRows(data: AppData, o: ViewOpts): Row[] {
     if (withHeader) {
       if (filtering && all.length === 0) return;
       if (!filtering && all.length === 0 && groups.length === 0 && vid == null) return;
-      rows.push({ kind: 'vehicle', key: `v:${vid ?? '-'}`, vehicle, stats: statsOf(data.tasks.filter((t) => t.vehicleId === vid && visible(t)), o.today) });
+      const open = filtering || !data.settings.collapsedV.includes(vid ?? '-');
+      rows.push({ kind: 'vehicle', key: `v:${vid ?? '-'}`, vehicle, stats: statsOf(data.tasks.filter((t) => t.vehicleId === vid && visible(t)), o.today), open });
+      if (!open) return;
     }
     for (const t of loose) rows.push({ kind: 'task', key: t.id, task: t, depth: 0, container: `v:${vid ?? '-'}`, vehicle });
     for (const g of groups) pushGroup(g, vehicle);
@@ -219,8 +222,9 @@ export function buildRows(data: AppData, o: ViewOpts): Row[] {
     const pinned = sortGroups(data.groups.filter((g) => g.parentId == null && g.pinned));
     const pinnedTasks = pinned.flatMap((g) => allUnder(g.id));
     if (pinned.length && (!filtering || pinnedTasks.length)) {
-      rows.push({ kind: 'pinned', key: 'pinned', stats: statsOf(pinnedTasks, o.today) });
-      for (const g of pinned) pushGroup(g, g.vehicleId ? vById.get(g.vehicleId) ?? null : null);
+      const open = filtering || !data.settings.collapsedV.includes('pinned');
+      rows.push({ kind: 'pinned', key: 'pinned', stats: statsOf(pinnedTasks, o.today), open });
+      if (open) for (const g of pinned) pushGroup(g, g.vehicleId ? vById.get(g.vehicleId) ?? null : null);
     }
     for (const v of [...data.vehicles].sort((a, b) => a.order - b.order)) vehicleSection(v.id, true, true);
     vehicleSection(null, true, true);

@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { setSettings } from '../../model/actions';
-import { commit, useData } from '../../store/store';
+import { commit, openSheet, useData } from '../../store/store';
 import { Seg } from '../components/bits';
 import { VehicleChips } from '../components/VehicleChips';
 import { Gantt } from '../gantt/Gantt';
@@ -21,6 +21,9 @@ export function GanttScreen() {
           <Seg value={zoom} onChange={(v) => commit((d) => setSettings(d, { ganttZoom: v }), { undoable: false })} options={[{ value: 'day', label: '日' }, { value: 'week', label: '週' }, { value: 'month', label: '月' }]} label="表示の単位" />
         </div>
         <SortChip mode={sortMode} />
+        <button type="button" className="iconbtn" aria-label="大項目の並び順" onClick={() => openSheet('order')}>
+          <Icon name="list" />
+        </button>
         <span className="grow" />
         <button type="button" className="iconbtn step" aria-label="前へ" onClick={() => api.current?.('prev')}>
           <Icon name="left" />

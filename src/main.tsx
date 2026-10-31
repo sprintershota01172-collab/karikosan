@@ -11,4 +11,6 @@ if (typeof __PWA__ !== 'undefined' && __PWA__ && 'serviceWorker' in navigator &&
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => undefined);
   });
+  // 保存したデータを、端末の空き容量が少ないときにも消されにくくする
+  void navigator.storage?.persist?.().catch(() => false);
 }

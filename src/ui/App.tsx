@@ -166,6 +166,26 @@ function useKeyboardFit() {
   }, []);
 }
 
+/** 電波がないときに「オフライン」と出す（データはこの端末に保存されるので、そのまま使える） */
+function OfflineBadge() {
+  const [off, setOff] = useState(typeof navigator !== 'undefined' && navigator.onLine === false);
+  useEffect(() => {
+    const on = () => setOff(!navigator.onLine);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', on);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', on);
+    };
+  }, []);
+  if (!off) return null;
+  return (
+    <span className="offline" role="status" title="オフラインでも使えます。データはこの端末に保存されます">
+      オフライン
+    </span>
+  );
+}
+
 /** 選んでいる行・バー（伸ばすモード）は、ほかの所をタップしたら外す */
 function useClearSelectionOnTapOutside() {
   useEffect(() => {
@@ -215,6 +235,7 @@ export function App() {
           <span className="ellipsis">{m.title}</span>
           {tab === 'home' && <small className="num">{shortDate(today())}</small>}
         </h1>
+ <OfflineBadge />
         <span className="save-dot" data-s={save} aria-label={save === 'saved' ? '保存済み' : save === 'saving' ? '保存中' : '保存に失敗'} title={save === 'saved' ? '保存済み' : '保存中'} />
         <button type="button" className="iconbtn" aria-label="元に戻す" disabled={!canUndo} onClick={undo}>
           <Icon name="undo" />

@@ -74,7 +74,7 @@ export function Checklists() {
         <div className="list" ref={root}>
           {sorted.length === 0 && (
             <div className="empty">
-              <div>お土産リストなど、仕事以外のちょっとしたリストに</div>
+              <div data-e="🛍️">お土産リストなど、仕事以外のちょっとしたリストに</div>
               <div className="micro">下の欄に「リスト名」を入れて追加。そのまま項目を書き足せます</div>
             </div>
           )}

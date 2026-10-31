@@ -110,7 +110,12 @@ export async function openGroup(page, name) {
     if ((await head.locator('.fold').getAttribute('aria-expanded')) === 'false') await head.locator('.fold').click();
   } else {
     const row = page.locator('.pane:not(.out) .gline[data-level]', { hasText: name }).first();
-    if ((await row.getAttribute('aria-expanded')) === 'false') await row.click();
+    // 行のまん中を押すと Playwright が横にスクロールしてしまうので、名前の所を押す（人が押す場所）
+    // Playwright の click は押す前に要素を見える所までスクロールする。名前の列（左に貼りつく）だとガントが左端まで戻るので、座標を押す
+    if ((await row.getAttribute('aria-expanded')) === 'false') {
+      const b = await row.locator('.gname').boundingBox();
+      await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    }
   }
   await page.waitForTimeout(450);
 }
@@ -152,4 +157,11 @@ export async function add(page, ...titles) {
   }
   await page.keyboard.press('Escape');
   await page.waitForTimeout(250);
+}
+
+/** ガントの行の名前をタップ（座標で押す。Playwright の click だと、押す前にガントが左端までスクロールしてしまうため） */
+export async function tapName(page, title) {
+  const b = await page.locator('.pane:not(.out) .gline', { hasText: title }).first().locator('.gname').boundingBox();
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  await page.waitForTimeout(120);
 }

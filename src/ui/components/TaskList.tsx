@@ -4,7 +4,7 @@
  */
 import React, { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { deleteTasks, reorder, setDone, setGroupOpen } from '../../model/actions';
+import { deleteTasks, reorder, setDone, setGroupOpen, toggleVehicleOpen } from '../../model/actions';
 import { shortDate, toDay, today } from '../../model/dates';
 import { LEVEL, priorityOf } from '../../model/priority';
 import { isOverdue, type Row } from '../../model/rows';
@@ -39,13 +39,13 @@ export function removeTask(t: Task) {
   commit((d) => deleteTasks(d, [t.id]), { toast: `「${t.title || '無題'}」を削除しました`, undoable: true });
 }
 
-export const TaskRow = memo(function TaskRow({ t, depth, container, selected, color, where }: { t: Task; depth: number; container: string; selected: boolean; color: string; where?: string }) {
+export const TaskRow = memo(function TaskRow({ t, depth, container, selected, color, where, edge = '' }: { t: Task; depth: number; container: string; selected: boolean; color: string; where?: string; edge?: string }) {
   const due = dueLabel(t);
   const [pop, setPop] = useState(false);
   const pr = priorityOf(t, today());
   const fixed = container.startsWith('p:'); // 優先度別のときは順番が自動（並べ替えない）
   return (
-    <SwipeRow flip={t.id} actions={[{ label: '削除', icon: 'trash', tone: 'danger', run: () => removeTask(t) }]}>
+    <SwipeRow flip={t.id} edge={edge} actions={[{ label: '削除', icon: 'trash', tone: 'danger', run: () => removeTask(t) }]}>
     <div
       className={`trow${t.done ? ' done' : ''}${pop ? ' just-done' : ''}${fixed ? ' two' : ''}`}
       data-depth={depth}
@@ -142,6 +142,14 @@ function GroupHead({ r, selected }: { r: Extract<Row, { kind: 'group' }>; select
   );
 }
 
+/** つながった1枚のカードの最初・最後（同じまとまり = 同じ container の続いたタスク） */
+export function edgeOf(rows: Row[], i: number): string {
+  const r = rows[i];
+  if (r.kind !== 'task') return '';
+  const same = (x: Row | undefined) => x?.kind === 'task' && x.container === r.container;
+  return `${same(rows[i - 1]) ? '' : ' first'}${same(rows[i + 1]) ? '' : ' last'}`;
+}
+
 export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | null }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const root = useRef<HTMLDivElement | null>(null);
@@ -172,10 +180,21 @@ export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | 
     <div className="scroll" ref={scroller} onClick={(e: MouseEvent) => e.target === e.currentTarget && setUI({ selected: null })}>
       <div className="list" ref={root}>
         {rows.length === 0 && empty}
-        {rows.map((r) => {
+        {rows.map((r, i) => {
           if (r.kind === 'vehicle' || r.kind === 'pinned')
             return (
-              <div key={r.key} className="vrow" data-flip={r.key} data-level={0}>
+              <div
+                key={r.key}
+                className={`vrow${r.kind === 'pinned' ? ' pin' : ''}`}
+                data-flip={r.key}
+                data-level={0}
+                role="button"
+                aria-expanded={r.open ? 'true' : 'false'}
+                onClick={() => commit((d) => toggleVehicleOpen(d, r.kind === 'pinned' ? 'pinned' : r.vehicle?.id ?? '-'), { undoable: false })}
+              >
+                <span className="vfold" aria-hidden="true">
+                  <Icon name="down" size={14} />
+                </span>
                 <span className="bar" style={{ background: r.kind === 'pinned' ? 'var(--navy)' : r.vehicle?.color ?? 'var(--gray)' }} />
                 <span className="ellipsis grow">{r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし'}</span>
                 <span className="num micro">
@@ -185,7 +204,7 @@ export function TaskList({ rows, empty }: { rows: Row[]; empty?: ReactElement | 
             );
           if (r.kind === 'group') return <GroupHead key={r.key} r={r} selected={selected === r.key} />;
           if (r.kind === 'prio') return <PrioHead key={r.key} r={r} />;
-          return <TaskRow key={r.key} t={r.task} depth={r.depth} container={r.container} selected={selected === r.task.id} color={r.vehicle?.color ?? 'var(--green)'} where={r.where} />;
+          return <TaskRow key={r.key} t={r.task} depth={r.depth} container={r.container} selected={selected === r.task.id} color={r.vehicle?.color ?? 'var(--green)'} where={r.where} edge={edgeOf(rows, i)} />;
         })}
       </div>
     </div>

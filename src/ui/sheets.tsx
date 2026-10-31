@@ -1,5 +1,6 @@
 /** 入力画面（シート）。変更はその場で保存し、文字は入力欄を離れたときに確定する */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { attachSortable } from './drag/sortable';
 import {
   addEvent,
   addGroup,
@@ -14,8 +15,13 @@ import {
   moveCheckItem,
   moveGroup,
   renameChecklist,
+  setAllVehiclesOpen,
   setGroupOpen,
+  setGroupOrder,
   setSettings,
+  setSortMode,
+  setVehicleOrder,
+  toggleVehicleOpen,
   updateEvent,
   updateGroup,
   updateTask,
@@ -31,7 +37,7 @@ import type { CalEvent, PlanEvent, Priority } from '../model/types';
 import { closeSheet, commit, openSheet, setTab, setUI, toast, useData, useUI } from '../store/store';
 import { AutoArea, Field, PrioBadge, Reveal, Seg, TextInput, Toggle } from './components/bits';
 import { revealIn } from './reveal';
-import { priorityOf, PRIORITY_CHOICES } from '../model/priority';
+import { LEVEL, priorityOf, PRIORITY_CHOICES } from '../model/priority';
 import { Sheet } from './components/Sheet';
 import { Icon } from './icons';
 
@@ -436,6 +442,10 @@ export function JumpSheet({ closing }: SheetProps) {
   }, [groups, vehicles, cur]);
   return (
     <Sheet title="グループへ移動" closing={closing}>
+      <button type="button" className="btn" onClick={() => (closeSheet(), setTimeout(() => openSheet('order'), 240))}>
+        <Icon name="list" size={18} />
+        大項目・グループの並び順を変える
+      </button>
       {list.length === 0 && <div className="empty">グループはまだありません</div>}
       {list.map((s) => (
         <div key={s.name} className="stack" style={{ gap: '0.25rem' }}>
@@ -538,44 +548,165 @@ export function SearchSheet({ closing }: SheetProps) {
   );
 }
 
+/* ---------- 大項目（車種）とグループの並び順・折りたたみ ---------- */
+export function OrderSheet({ closing }: SheetProps) {
+  const vehicles = useData((d) => d.vehicles);
+  const groups = useData((d) => d.groups);
+  const collapsed = useData((d) => d.settings.collapsedV);
+  const root = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = root.current;
+    const sc = el?.closest<HTMLElement>('.sheet-body');
+    if (!el || !sc) return;
+    return attachSortable(el, {
+      scroller: sc,
+      onDrop: (_k, group, keys) => commit((d) => (group === 'veh' ? setVehicleOrder(d, keys) : setGroupOrder(d, keys))),
+    });
+  }, []);
+  const vs = [...vehicles].sort((a, b) => a.order - b.order);
+  const move = (list: string[], id: string, dir: -1 | 1) => {
+    const i = list.indexOf(id);
+    const j = i + dir;
+    if (j < 0 || j >= list.length) return list;
+    const out = [...list];
+    [out[i], out[j]] = [out[j], out[i]];
+    return out;
+  };
+  const sections: { vid: string | null; name: string; color: string }[] = [...vs.map((v) => ({ vid: v.id as string | null, name: v.name, color: v.color })), { vid: null, name: '車種なし', color: 'var(--gray)' }];
+  return (
+    <Sheet title="大項目の並び順" closing={closing}>
+      <div className="row">
+        <button type="button" className="btn small grow" onClick={() => commit((d) => setAllVehiclesOpen(d, false), { undoable: false })}>
+          <Icon name="up" size={16} />
+          すべて閉じる
+        </button>
+        <button type="button" className="btn small grow" onClick={() => commit((d) => setAllVehiclesOpen(d, true), { undoable: false })}>
+          <Icon name="down" size={16} />
+          すべて開く
+        </button>
+      </div>
+      <div className="micro">長押ししてドラッグ、または ▲▼ で並べ替え。目のボタンで折りたたみ</div>
+      <div ref={root} className="stack order" style={{ gap: '0.25rem' }}>
+        <div className="res-head">🚗 車種（大項目）</div>
+        <div className="group-card">
+          {vs.map((v, i) => (
+            <div key={v.id} className="item oitem" data-sort-key={v.id} data-sort-group="veh">
+              <Icon name="grip" size={18} />
+              <i style={{ width: '0.6rem', height: '0.6rem', borderRadius: '50%', background: v.color, flex: 'none' }} />
+              <span className="grow ellipsis">{v.name}</span>
+              <button type="button" className="iconbtn" data-no-drag aria-label={`${v.name}を${collapsed.includes(v.id) ? '開く' : '閉じる'}`} onClick={() => commit((d) => toggleVehicleOpen(d, v.id), { undoable: false })}>
+                <Icon name={collapsed.includes(v.id) ? 'hide' : 'eye'} size={18} />
+              </button>
+              <button type="button" className="iconbtn" data-no-drag aria-label={`${v.name}を上へ`} disabled={i === 0} onClick={() => commit((d) => setVehicleOrder(d, move(vs.map((x) => x.id), v.id, -1)))}>
+                <Icon name="up" size={18} />
+              </button>
+              <button type="button" className="iconbtn" data-no-drag aria-label={`${v.name}を下へ`} disabled={i === vs.length - 1} onClick={() => commit((d) => setVehicleOrder(d, move(vs.map((x) => x.id), v.id, 1)))}>
+                <Icon name="down" size={18} />
+              </button>
+            </div>
+          ))}
+          {vs.length === 0 && <div className="item micro">車種はまだありません</div>}
+        </div>
+        {sections.map((s) => {
+          const list = groups.filter((g) => g.vehicleId === s.vid && !g.parentId).sort((a, b) => a.order - b.order);
+          if (!list.length) return null;
+          const ids = list.map((g) => g.id);
+          return (
+            <React.Fragment key={s.name}>
+              <div className="res-head">📁 {s.name} のグループ</div>
+              <div className="group-card">
+                {list.map((g, i) => (
+                  <div key={g.id} className="item oitem" data-sort-key={g.id} data-sort-group={`g:${s.vid ?? '-'}`}>
+                    <Icon name="grip" size={18} />
+                    <i style={{ width: '0.25rem', height: '1rem', borderRadius: 2, background: s.color, flex: 'none' }} />
+                    <span className="grow ellipsis">{g.name}</span>
+                    <button type="button" className="iconbtn" data-no-drag aria-label={`${g.name}を上へ`} disabled={i === 0} onClick={() => commit((d) => setGroupOrder(d, move(ids, g.id, -1)))}>
+                      <Icon name="up" size={18} />
+                    </button>
+                    <button type="button" className="iconbtn" data-no-drag aria-label={`${g.name}を下へ`} disabled={i === list.length - 1} onClick={() => commit((d) => setGroupOrder(d, move(ids, g.id, 1)))}>
+                      <Icon name="down" size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </Sheet>
+  );
+}
+
 /* ---------- ホームの4分割: 枠のグループを選ぶ ---------- */
-export function QuadPickSheet({ props, closing }: SheetProps) {
+export function QuadSheet({ props, closing }: SheetProps) {
   const slot = props.slot as number;
+  const by = props.by as 'priority' | 'group';
   const groups = useData((d) => d.groups);
   const vehicles = useData((d) => d.vehicles);
+  const name = useData((d) => d.settings.quadNames[by][slot] ?? '');
   const cur = useData((d) => d.settings.quadGroups[slot] ?? null);
-  const pick = (id: string | null) => {
-    commit((d) => setSettings(d, { quadGroups: d.settings.quadGroups.map((x, i) => (i === slot ? id : x === id && id ? null : x)) }), { undoable: false });
+  const shown = props.groupId as string | null | undefined;
+  const level = props.level as 1 | 2 | 3 | 4 | undefined;
+  const auto = by === 'priority' ? LEVEL[level ?? 4].label : groups.find((g) => g.id === shown)?.name ?? 'グループ';
+  const setName = (v: string) =>
+    commit((d) => setSettings(d, { quadNames: { ...d.settings.quadNames, [by]: d.settings.quadNames[by].map((x, i) => (i === slot ? v.trim().slice(0, 30) : x)) } }), { undoable: false });
+  const pick = (id: string | null) => commit((d) => setSettings(d, { quadGroups: d.settings.quadGroups.map((x, i) => (i === slot ? id : x === id && id ? null : x)) }), { undoable: false });
+  // ホームとタスクは連動: この枠の中身を、タスクの一覧で開く
+  const openInTasks = () => {
     closeSheet();
+    if (by === 'priority') {
+      commit((d) => setSortMode(d, 'priority'), { undoable: false });
+      setUI({ tasksView: 'tasks', status: 'all', query: '', assignee: null });
+      setTab('tasks');
+      return;
+    }
+    const g = groups.find((x) => x.id === shown);
+    if (!g) return;
+    commit((d) => setGroupOpen(setSettings(d, { vehicle: g.vehicleId ?? 'all' }), g.id, true), { undoable: false });
+    setUI({ tasksView: 'tasks', status: 'all', query: '', assignee: null });
+    setTab('tasks');
+    setTimeout(() => jumpTo(g.id), 300);
   };
   const sections = [...vehicles].sort((a, b) => a.order - b.order).map((v) => ({ name: v.name, color: v.color, id: v.id as string | null }));
   sections.push({ name: '車種なし', color: 'var(--gray)', id: null });
   return (
-    <Sheet title={`${slot + 1}つ目の枠のグループ`} closing={closing}>
-      <div className="group-card">
-        <button type="button" className="item" onClick={() => pick(null)}>
-          <span className="grow">自動で選ぶ（まだ使っていない上のグループ）</span>
-          {!cur && <Icon name="check" size={18} />}
-        </button>
-      </div>
-      {sections.map((s) => {
-        const parents = groups.filter((g) => g.vehicleId === s.id && !g.parentId).sort((a, b) => a.order - b.order);
-        if (!parents.length) return null;
-        return (
-          <div key={s.name} className="stack" style={{ gap: '0.25rem' }}>
-            <div className="res-head">{s.name}</div>
-            <div className="group-card">
-              {parents.flatMap((g) => [g, ...groups.filter((c) => c.parentId === g.id).sort((a, b) => a.order - b.order)]).map((g) => (
-                <button key={g.id} type="button" className="item" style={g.parentId ? { paddingLeft: '1.75rem', color: 'var(--ink-2)' } : { fontWeight: 700 }} onClick={() => pick(g.id)}>
-                  <i style={{ width: '0.25rem', height: '1rem', borderRadius: 2, background: s.color, flex: 'none' }} />
-                  <span className="grow ellipsis">{g.name}</span>
-                  {cur === g.id && <Icon name="check" size={18} />}
-                </button>
-              ))}
-            </div>
+    <Sheet title={`${slot + 1}つ目の枠`} closing={closing}>
+      <Field label="枠の名前（空にすると自動）">
+        <TextInput value={name} placeholder={auto} onCommit={setName} />
+      </Field>
+      <button type="button" className="btn" onClick={openInTasks} disabled={by === 'group' && !shown}>
+        <Icon name="tasks" size={18} />
+        タスクの一覧で見る
+      </button>
+      {by === 'group' && (
+        <>
+          <div className="res-head">📁 この枠に出すグループ</div>
+          <div className="group-card">
+            <button type="button" className="item" onClick={() => pick(null)}>
+              <span className="grow">自動で選ぶ（まだ使っていない上のグループ）</span>
+              {!cur && <Icon name="check" size={18} />}
+            </button>
           </div>
-        );
-      })}
+          {sections.map((s) => {
+            const parents = groups.filter((g) => g.vehicleId === s.id && !g.parentId).sort((a, b) => a.order - b.order);
+            if (!parents.length) return null;
+            return (
+              <div key={s.name} className="stack" style={{ gap: '0.25rem' }}>
+                <div className="res-head">{s.name}</div>
+                <div className="group-card">
+                  {parents.flatMap((g) => [g, ...groups.filter((c) => c.parentId === g.id).sort((a, b) => a.order - b.order)]).map((g) => (
+                    <button key={g.id} type="button" className="item" style={g.parentId ? { paddingLeft: '1.75rem', color: 'var(--ink-2)' } : { fontWeight: 700 }} onClick={() => (pick(g.id), closeSheet())}>
+                      <i style={{ width: '0.25rem', height: '1rem', borderRadius: 2, background: s.color, flex: 'none' }} />
+                      <span className="grow ellipsis">{g.name}</span>
+                      {cur === g.id && <Icon name="check" size={18} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
     </Sheet>
   );
 }
@@ -649,6 +780,7 @@ export function PlanSheet({ props, closing }: SheetProps) {
           {PLAN_KIND_ORDER.map((k) => (
             <button key={k} type="button" className="chip" aria-pressed={v.kind === k ? 'true' : 'false'} onClick={() => set({ kind: k })}>
               <i className="dot" style={{ background: PLAN_KINDS[k].color }} />
+              <span className="emo" data-e={PLAN_KINDS[k].emoji} aria-hidden="true" />
               <span>{PLAN_KINDS[k].label}</span>
             </button>
           ))}
@@ -897,5 +1029,6 @@ export const SHEETS: Record<string, (p: SheetProps) => ReturnType<typeof Confirm
   checkItem: CheckItemSheet,
   confirm: ConfirmSheet,
   plan: PlanSheet,
-  quadPick: QuadPickSheet,
+  quad: QuadSheet,
+  order: OrderSheet,
 };

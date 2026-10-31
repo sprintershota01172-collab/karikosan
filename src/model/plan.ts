@@ -8,13 +8,13 @@ import { addDays, diffDays, startOfWeek, toDay } from './dates';
 import { uid } from './schema';
 import type { AppData, DateStr, ID, PlanEvent, PlanKind, Vehicle } from './types';
 
-export const PLAN_KINDS: Record<PlanKind, { label: string; color: string }> = {
-  design: { label: '設計', color: '#3B6EA8' },
-  proto: { label: '試作', color: '#3D7469' },
-  eval: { label: '評価', color: '#8E5BA8' },
-  prep: { label: '生産準備', color: '#B7791F' },
-  mass: { label: '量産', color: '#C2554A' },
-  other: { label: 'その他', color: '#7D8AA0' },
+export const PLAN_KINDS: Record<PlanKind, { label: string; color: string; emoji: string }> = {
+  design: { label: '設計', color: '#3B6EA8', emoji: '✏️' },
+  proto: { label: '試作', color: '#3D7469', emoji: '🔧' },
+  eval: { label: '評価', color: '#8E5BA8', emoji: '🧪' },
+  prep: { label: '生産準備', color: '#B7791F', emoji: '🏭' },
+  mass: { label: '量産', color: '#C2554A', emoji: '🚗' },
+  other: { label: 'その他', color: '#7D8AA0', emoji: '📌' },
 };
 export const PLAN_KIND_ORDER: PlanKind[] = ['design', 'proto', 'eval', 'prep', 'mass', 'other'];
 export const LOAD_LABEL: Record<1 | 2 | 3, string> = { 1: '小', 2: '中', 3: '大' };

@@ -122,6 +122,7 @@ export function Calendar() {
         </div>
       </div>
       <div className="section-head">
+        <span className="emo" data-e="🗓️" aria-hidden="true" />
         <span>{sel === day ? '今日' : shortDate(sel)}からの予定</span>
         <span className="count num">{list.length}件</span>
         <span className="grow" />
@@ -131,7 +132,7 @@ export function Calendar() {
         </button>
       </div>
       <div className="scroll" style={{ paddingBottom: '0.5rem' }} ref={listBox}>
-        {list.length === 0 && <div className="empty">予定はありません。「＋予定」から追加できます</div>}
+        {list.length === 0 && <div className="empty"><div data-e="🌿">予定はありません。「＋予定」から追加できます</div></div>}
         {list.map((o) => (
           <button key={o.key} type="button" className="erow" onClick={() => openSheet('event', { id: o.event.id })}>
             <span className="time num">

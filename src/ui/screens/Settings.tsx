@@ -10,6 +10,29 @@ import { applyUpdate, BUILD, BUILT_AT, latestBuild, shareOrDownload } from '../p
 
 export const FONT_PX = [12, 13, 14, 15, 16, 17, 18, 19, 20, 22];
 
+/** オフラインで使える準備ができているか（ホーム画面のアプリとして一度開くと準備される） */
+function OfflineReady() {
+  const [ok, setOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw || !window.isSecureContext) return setOk(false);
+    sw.getRegistration().then((r) => setOk(!!(r?.active || sw.controller))).catch(() => setOk(false));
+  }, []);
+  return (
+    <div className="row" style={{ alignItems: 'flex-start' }}>
+      <span style={{ fontSize: '1.25rem', lineHeight: 1.2 }}>{ok ? '✅' : '⏳'}</span>
+      <div className="grow">
+        <div style={{ fontWeight: 700 }}>{ok ? 'オフラインでも使えます' : ok === null ? '確かめています…' : 'オフラインの準備がまだです'}</div>
+        <div className="micro" style={{ lineHeight: 1.6 }}>
+          {ok
+            ? '電波がなくても起動・追加・編集ができます。データはこの端末に保存されます。'
+            : 'インターネットにつながっている状態で一度開くと、次からはオフラインでも使えます。'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Settings() {
   const s = useData((d) => d.settings);
   const vehicles = useData((d) => d.vehicles);
@@ -27,7 +50,7 @@ export function Settings() {
     <div className="screen">
       <div className="scroll" ref={box}>
         <div className="sec">
-          <h3>表示</h3>
+          <h3><span className="emo" data-e="🎨" aria-hidden="true" />表示</h3>
           <div className="group-card" style={{ padding: '0.5rem 0.75rem' }}>
             <div className="row between" style={{ minHeight: '2.25rem' }}>
               <span>文字の大きさ</span>
@@ -56,7 +79,7 @@ export function Settings() {
         </div>
 
         <div className="sec">
-          <h3>車種</h3>
+          <h3><span className="emo" data-e="🚗" aria-hidden="true" />車種</h3>
           <div className="group-card">
             {[...vehicles]
               .sort((a, b) => a.order - b.order)
@@ -82,7 +105,7 @@ export function Settings() {
         </div>
 
         <div className="sec">
-          <h3>データ</h3>
+          <h3><span className="emo" data-e="💾" aria-hidden="true" />データ</h3>
           <div className="group-card">
             <div className="item" style={{ justifyContent: 'space-between' }}>
               <span>保存先</span>
@@ -140,7 +163,14 @@ export function Settings() {
         </div>
 
         <div className="sec">
-          <h3>共同編集</h3>
+          <h3><span className="emo" data-e="📴" aria-hidden="true" />オフライン</h3>
+          <div className="group-card" style={{ padding: '0.75rem' }}>
+            <OfflineReady />
+          </div>
+        </div>
+
+        <div className="sec">
+          <h3><span className="emo" data-e="🤝" aria-hidden="true" />共同編集</h3>
           <div className="group-card" style={{ padding: '0.75rem' }}>
             <div className="row between">
               <span>複数の端末・メンバーで共有</span>
@@ -153,7 +183,7 @@ export function Settings() {
         </div>
 
         <div className="sec">
-          <h3>アプリ</h3>
+          <h3><span className="emo" data-e="📱" aria-hidden="true" />アプリ</h3>
           <div className="group-card">
             <div className="item" style={{ justifyContent: 'space-between' }}>
               <span>版</span>

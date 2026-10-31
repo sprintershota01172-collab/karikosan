@@ -1,7 +1,7 @@
 // ガント: 20行表示、バーの移動・伸縮、土日、期限順の自動整列、一覧との同期
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { add, errors, ganttTitles, listTitles, open, openGroup, setup, sheet, tab, teardown, touchDrag } from './helpers.mjs';
+import { add, errors, ganttTitles, listTitles, open, openGroup, setup, sheet, tab, teardown, touchDrag, tapName } from './helpers.mjs';
 
 before(setup);
 after(teardown);
@@ -143,8 +143,8 @@ describe('バーの操作', () => {
     assert.equal(wdays(r1.start, r1.end), n0, `作業日数 ${n0}`);
     assert.ok(!isWE(r1.start) && !isWE(r1.end), `${r1.start}〜${r1.end}`);
     // 一覧の編集画面にも反映
-    await page.locator('.gline', { hasText: t }).locator('.gname').click();
-    await page.locator('.gline', { hasText: t }).locator('.gname').click();
+    await tapName(page, t);
+    await tapName(page, t);
     await page.waitForTimeout(300);
     assert.equal(await sheet(page).locator('input[aria-label="期限"]').inputValue(), r1.end);
     await ctx.close();
@@ -155,7 +155,7 @@ describe('バーの操作', () => {
     await tab(page, 'gantt');
     const t = '試作部品の手配';
     await openGroup(page, '試作・評価');
-    await page.locator('.gline', { hasText: t }).locator('.gname').click();
+    await tapName(page, t);
     const r0 = await range(page, t);
     const w = await dayW(page);
     let b = await bar(page, t).boundingBox();
@@ -199,7 +199,7 @@ describe('バーの操作', () => {
     const { ctx, page } = await open('iphone');
     await tab(page, 'gantt');
     const t = 'バンパー形状の検討';
-    await page.locator('.gline', { hasText: t }).locator('.gname').click(); // 選択しておく
+    await tapName(page, t); // 選択しておく
     assert.equal(await page.locator('.gline[aria-selected="true"]', { hasText: t }).count(), 1);
     const r0 = await range(page, t);
     const top0 = await page.$eval('.gscroll', (e) => e.scrollTop);
@@ -222,8 +222,8 @@ describe('バーの操作', () => {
     const t = 'バンパー形状の検討';
     const runs0 = await bar(page, t).locator('.seg-run').count();
     assert.ok(runs0 >= 2, `週末で区切る: ${runs0}`);
-    await page.locator('.gline', { hasText: t }).locator('.gname').click();
-    await page.locator('.gline', { hasText: t }).locator('.gname').click();
+    await tapName(page, t);
+    await tapName(page, t);
     await sheet(page).locator('button[aria-label="土日も作業する"]').click();
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
@@ -247,7 +247,7 @@ describe('バーの操作', () => {
     const before1 = await ganttTitles(page);
     // フロント周りの最後（フード開閉）を、いちばん早い期限にする
     const t = 'フード開閉の干渉確認';
-    await page.locator('.gline', { hasText: t }).locator('.gname').click();
+    await tapName(page, t);
     const w = await dayW(page);
     const b = await bar(page, t).boundingBox();
     await mouseDrag(page, b.x + Math.min(b.width / 2, w), b.y + b.height / 2, -w * 16, 16);

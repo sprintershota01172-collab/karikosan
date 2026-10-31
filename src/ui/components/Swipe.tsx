@@ -24,7 +24,7 @@ let closeOpen: (() => void) | null = null;
 const remPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 15;
 const BTN = 4.25; // rem（ボタン1つの幅）
 
-export function SwipeRow({ actions, children, flip, testId }: { actions: SwipeAction[]; children: ReactNode; flip?: string; testId?: string }) {
+export function SwipeRow({ actions, children, flip, testId, edge = '' }: { actions: SwipeAction[]; children: ReactNode; flip?: string; testId?: string; edge?: string }) {
   const front = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(false);
@@ -63,7 +63,7 @@ export function SwipeRow({ actions, children, flip, testId }: { actions: SwipeAc
   };
 
   return (
-    <div className={`swipe${shown ? ' shown' : ''}`} data-flip={flip} data-testid={testId}>
+    <div className={`swipe${shown ? ' shown' : ''}${edge}`} data-flip={flip} data-testid={testId}>
       <div className="actions" aria-hidden={open ? 'false' : 'true'}>
         {actions.map((a) => (
           <button

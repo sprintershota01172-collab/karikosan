@@ -11,7 +11,7 @@
  *   日付の確定 → 並べ替え（期限順なら）→ FLIP の行アニメーション、の順に分けて行う。
  */
 import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { reorder, setDone, setTaskRange } from '../../model/actions';
+import { reorder, setDone, setTaskRange, toggleVehicleOpen } from '../../model/actions';
 import { addDays, daysInMonth, diffDays, fromDay, isWeekend, monthOf, monthStart, resizeEnd, resizeStart, shiftRange, shortDate, toDay, today, workdays, workRuns } from '../../model/dates';
 import type { Row } from '../../model/rows';
 import type { GanttZoom, Task } from '../../model/types';
@@ -258,7 +258,9 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
                   })}
               </div>
             </div>
-            <div className="gbody" ref={body} style={{ position: 'relative' }}>
+            <div className="gbody" ref={body} style={{ position: 'relative', minHeight: `${Math.max(0, size.h - headH - 1)}px` }}>
+              {/* 名前の列の地（行がない所でも、日付の線が名前の列に入り込まない） */}
+              <div className="gnamecol" style={{ width: `${geom.nameW}px`, height: `${Math.max(size.h - headH - 1, rows.length * geom.rowH)}px`, marginBottom: `-${Math.max(size.h - headH - 1, rows.length * geom.rowH)}px` }} />
               <div className="gbg" style={{ left: `${geom.nameW}px`, width: `${geom.days * geom.dayW}px` }}>
                 {zoom !== 'month' && weekends.map((i) => <div key={i} className="we" style={{ left: `${i * geom.dayW}px`, width: `${geom.dayW}px` }} />)}
                 <div className="ggrid" style={grid} />
@@ -271,8 +273,8 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
                 <GanttRow key={r.key} r={r} geom={geom} selected={r.kind === 'task' ? selected === r.task.id : selected === r.key} color={r.kind === 'task' ? vColor.get(r.task.vehicleId ?? '') ?? 'var(--green)' : r.kind === 'group' ? r.vehicle?.color ?? 'var(--navy)' : 'var(--navy)'} day={day} />
               ))}
               {rows.length === 0 && (
-                <div className="empty" style={{ position: 'sticky', left: 0, width: `${size.w}px` }}>
-                  タスクを追加すると、ここに工程が並びます
+                <div className="empty gempty" style={{ position: 'sticky', left: 0, width: `${size.w}px` }}>
+                  <div data-e="📊">タスクを追加すると、ここに工程が並びます</div>
                 </div>
               )}
             </div>
@@ -288,13 +290,27 @@ const GanttRow = memo(function GanttRow({ r, geom, selected, color, day }: { r: 
   const h = `${geom.rowH}px`;
   const trackW = `${geom.days * geom.dayW}px`;
   if (r.kind === 'vehicle' || r.kind === 'pinned') {
+    // 大項目（車種）: タップで折りたたみ。たたんでいるときは期間のまとめのバーを出す
+    const key = r.kind === 'pinned' ? 'pinned' : r.vehicle?.id ?? '-';
+    const s = r.stats;
+    const left = s.start ? diffDays(geom.from, s.start) * geom.dayW : 0;
+    const w = s.start && s.end ? (diffDays(s.start, s.end) + 1) * geom.dayW : 0;
+    const color = r.kind === 'pinned' ? 'var(--navy)' : r.vehicle?.color ?? 'var(--gray)';
     return (
-      <div className="gline" data-flip={r.key} data-level={0} style={{ height: h }}>
+      <div className="gline gveh" data-flip={r.key} data-level={0} data-vkey={key} style={{ height: h }} aria-expanded={r.open ? 'true' : 'false'} onClick={() => commit((d) => toggleVehicleOpen(d, key), { undoable: false })}>
         <div className="gname v" style={{ width: `${geom.nameW}px`, height: h }}>
-          <span style={{ width: '0.25rem', height: '0.875rem', borderRadius: 2, background: r.kind === 'pinned' ? 'var(--navy)' : r.vehicle?.color ?? 'var(--gray)', flex: 'none' }} />
+          <span className="gfold" aria-hidden="true">
+            <Icon name="down" size={12} />
+          </span>
+          <span style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', background: color, flex: 'none' }} />
           <Reveal text={r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし'} />
+          <span className="num micro" style={{ marginLeft: 'auto', flex: 'none' }}>
+            {s.done}/{s.total}
+          </span>
         </div>
-        <div className="gtrack" style={{ width: trackW, height: h, background: 'rgba(238,240,236,0.5)' }} />
+        <div className="gtrack" style={{ width: trackW, height: h }}>
+          {!r.open && w > 0 && <div className="gsum" style={{ left: `${left}px`, width: `${w}px`, ['--bar' as string]: color }} />}
+        </div>
       </div>
     );
   }

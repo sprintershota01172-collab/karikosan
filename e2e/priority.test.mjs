@@ -14,10 +14,12 @@ describe('優先度', () => {
   it('一覧・ガントに印が出る。ホームは優先度ごとに区切って高い順', async () => {
     const { ctx, page } = await open('iphone');
     await tab(page, 'tasks');
-    assert.equal(await page.locator('.trow', { hasText: '週報の提出' }).locator('.pri').textContent(), '至急', '今日が期限 = 至急');
+    // 至急のタスク（曜日によってサンプルの日付がずれるので、至急になっているものを1つ選ぶ）
+    const urgent = await page.$$eval('.trow', (els) => els.filter((e) => e.querySelector('.pri')?.textContent === '至急').map((e) => e.querySelector('.reveal > span').textContent));
+    assert.ok(urgent.length > 0, '至急のタスクがある');
     assert.equal(await page.locator('.trow', { hasText: '原価の見積もり' }).locator('.pri').textContent(), '高', '手動の「高」');
     await tab(page, 'gantt');
-    assert.equal(await page.locator('.gline', { hasText: '週報の提出' }).locator('.pri').textContent(), '急');
+    assert.equal(await page.locator('.gline', { hasText: urgent[0] }).locator('.pri').textContent(), '急');
     await tab(page, 'home');
     const heads = await page.$$eval('.pane:not(.out) .prow .ptag', (els) => els.map((e) => e.textContent));
     assert.ok(heads.length >= 2, heads.join(','));

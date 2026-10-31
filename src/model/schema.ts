@@ -14,7 +14,7 @@ export const VEHICLE_COLORS = ['#3D7469', '#3B6EA8', '#B7791F', '#8E5BA8', '#C25
 let seq = 0;
 export const uid = (p = 'id'): string => `${p}_${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', oneGroup: true, planZoom: 'week', homeMode: 'today', quadBy: 'priority', quadGroups: [null, null, null, null] });
+export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', oneGroup: true, planZoom: 'week', homeMode: 'today', quadBy: 'priority', quadGroups: [null, null, null, null], quadNames: { priority: ['', '', '', ''], group: ['', '', '', ''] }, collapsedV: [] });
 
 export function emptyData(): AppData {
   return { schema: SCHEMA, vehicles: [], groups: [], tasks: [], events: [], checklists: [], plans: [], settings: defaultSettings(), updatedAt: Date.now() };
@@ -199,6 +199,12 @@ export function migrate(raw: unknown): AppData {
     planZoom: s.planZoom === 'month' ? 'month' : 'week',
     homeMode: s.homeMode === 'quad' ? 'quad' : 'today',
     quadBy: s.quadBy === 'group' ? 'group' : 'priority',
+    quadNames: (() => {
+      const q = isObj(s.quadNames) ? s.quadNames : {};
+      const four = (v: unknown) => [0, 1, 2, 3].map((i) => str(arr(v)[i]).slice(0, 30));
+      return { priority: four(q.priority), group: four(q.group) };
+    })(),
+    collapsedV: arr(s.collapsedV).filter((x): x is string => typeof x === 'string' && (x === '-' || x === 'pinned' || vIds.has(x))),
     quadGroups: [0, 1, 2, 3].map((i) => {
       const g = arr(s.quadGroups)[i];
       return typeof g === 'string' && groups.some((x) => x.id === g) ? g : null;

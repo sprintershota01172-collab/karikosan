@@ -204,6 +204,7 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
               </div>
             </div>
             <div className="gbody" ref={body} style={{ position: 'relative' }}>
+              <div className="gnamecol" style={{ width: `${g.nameW}px`, height: `${contentH - g.headH}px`, marginBottom: `-${contentH - g.headH}px` }} />
               <div className="gbg" style={{ left: `${g.nameW}px`, width: `${g.weeks * g.weekW}px` }}>
                 {loads.map((n, i) => (loadLevel(n) >= 2 ? <div key={i} className={`lw l${loadLevel(n)}`} style={{ left: `${i * g.weekW}px`, width: `${g.weekW}px` }} /> : null))}
                 <div className="ggrid" style={{ backgroundImage: 'linear-gradient(to right, var(--grid) 1px, transparent 1px)', backgroundSize: `${g.weekW}px 100%` }} />
@@ -226,7 +227,7 @@ function PlanChart({ vehicle, zoom, api }: { vehicle: ID | 'all'; zoom: 'week' |
               )}
               {vehicles.length === 0 && !plans.length && (
                 <div className="empty" style={{ position: 'sticky', left: 0, width: `${size.w}px` }}>
-                  車種を追加すると、車種ごとの大日程を作れます
+                  <div data-e="🚗">車種を追加すると、車種ごとの大日程を作れます</div>
                 </div>
               )}
             </div>
@@ -255,7 +256,7 @@ const PlanLine = memo(function PlanLine({ r, g, selected, onTrack }: { r: PlanRo
         </div>
         <div className="gtrack" style={{ width: trackW, height: h }} onClick={(e: MouseEvent) => onTrack(e, r.vehicleId)}>
           {r.events.map((p) => (
-            <Bar key={p.id} p={p} g={g} selected={selected === p.id} label={p.title} />
+            <Bar key={p.id} p={p} g={g} selected={selected === p.id} label={p.title} emoji={PLAN_KINDS[p.kind].emoji} />
           ))}
         </div>
       </div>
@@ -271,13 +272,13 @@ const PlanLine = memo(function PlanLine({ r, g, selected, onTrack }: { r: PlanRo
         <span className="num micro">{weeksOf(p)}週</span>
       </div>
       <div className="gtrack" style={{ width: trackW, height: h }} onClick={(e: MouseEvent) => onTrack(e, p.vehicleId)}>
-        <Bar p={p} g={g} selected={selected === p.id} label={`${k.label}・負荷${LOAD_LABEL[p.load]}`} />
+        <Bar p={p} g={g} selected={selected === p.id} label={`${k.label}・負荷${LOAD_LABEL[p.load]}`} emoji={k.emoji} />
       </div>
     </div>
   );
 });
 
-function Bar({ p, g, selected, label }: { p: PlanEvent; g: Geom; selected: boolean; label: string }) {
+function Bar({ p, g, selected, label, emoji }: { p: PlanEvent; g: Geom; selected: boolean; label: string; emoji: string }) {
   const left = diffDays(g.from, p.start) * g.dayW;
   const w = (diffDays(p.start, p.end) + 1) * g.dayW;
   return (
@@ -297,7 +298,10 @@ function Bar({ p, g, selected, label }: { p: PlanEvent; g: Geom; selected: boole
         else setUI({ selected: p.id });
       }}
     >
-      <span className="plabel">{label}</span>
+      <span className="plabel">
+        <span className="emo" data-e={emoji} aria-hidden="true" />
+        {label}
+      </span>
       <div className="h l" data-handle="l" />
       <div className="h r" data-handle="r" />
     </div>

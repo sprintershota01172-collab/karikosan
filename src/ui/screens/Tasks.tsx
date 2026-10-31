@@ -94,11 +94,11 @@ function TaskPane() {
           <div className="empty">
             {nTasks === 0 ? (
               <>
-                <div>下の入力欄からタスクを追加できます</div>
+                <div data-e="📝">下の「＋ タスクを追加」から追加できます</div>
                 <div className="micro">車種・グループは右上のボタンで追加</div>
               </>
             ) : (
-              <div>該当するタスクはありません</div>
+              <div data-e="🔍">該当するタスクはありません</div>
             )}
           </div>
         }

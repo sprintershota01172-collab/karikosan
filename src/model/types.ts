@@ -130,6 +130,10 @@ export interface Settings {
   quadBy: 'priority' | 'group';
   /** 4分割（グループ）で使うグループ（4つ。null = 未設定） */
   quadGroups: (ID | null)[];
+  /** 4分割の枠の名前（自分で付けた名前。空 = 自動）。priority と group で別々に4つずつ */
+  quadNames: { priority: string[]; group: string[] };
+  /** 折りたたんだ大項目（車種の id。'-' = 車種なし、'pinned' = 固定したグループ） */
+  collapsedV: string[];
 }
 
 export interface AppData {

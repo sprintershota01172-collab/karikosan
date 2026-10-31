@@ -264,6 +264,24 @@ export function setOneGroup(d: AppData, on: boolean): AppData {
   return { ...next, groups: next.groups.map((g) => (close.has(g.id) ? { ...g, collapsed: true } : g)) };
 }
 
+/** 大項目（車種）の折りたたみ。key = 車種の id・'-'（車種なし）・'pinned' */
+export function toggleVehicleOpen(d: AppData, key: string): AppData {
+  const c = d.settings.collapsedV;
+  return setSettings(d, { collapsedV: c.includes(key) ? c.filter((x) => x !== key) : [...c, key] });
+}
+export const setAllVehiclesOpen = (d: AppData, open: boolean): AppData =>
+  setSettings(d, { collapsedV: open ? [] : [...d.vehicles.map((v) => v.id), '-', 'pinned'] });
+
+/** 並び順の画面: 車種の順番、グループ（同じ車種・同じ親の中）の順番をまとめて決める */
+export function setVehicleOrder(d: AppData, ids: ID[]): AppData {
+  const o = new Map(ids.map((id, i) => [id, i]));
+  return touch({ ...d, vehicles: d.vehicles.map((v) => (o.has(v.id) ? { ...v, order: o.get(v.id)! } : v)) });
+}
+export function setGroupOrder(d: AppData, ids: ID[]): AppData {
+  const o = new Map(ids.map((id, i) => [id, i]));
+  return touch({ ...d, groups: d.groups.map((g) => (o.has(g.id) ? { ...g, order: o.get(g.id)! } : g)) });
+}
+
 export const SORT_LABEL: Record<Settings['sortMode'], string> = { manual: '手動', due: '期限順', priority: '優先度別' };
 /** 並び順のボタン: 手動 → 期限順 → 優先度別 → 手動 */
 export const nextSortMode = (m: Settings['sortMode']): Settings['sortMode'] => (m === 'manual' ? 'due' : m === 'due' ? 'priority' : 'manual');

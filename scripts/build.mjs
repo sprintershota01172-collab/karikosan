@@ -94,27 +94,30 @@ await writeFile(
 for (const f of ['icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable.png']) await copyFile(path.join(root, 'public', f), out(f));
 
 // オフライン用の Service Worker。キャッシュ名に版を入れ、新しい版では古いキャッシュを消す
-const files = ['./', './index.html', `./${jsName}`, `./${cssName}`, './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
+//  - 起動（HTML）: ネットを優先。ただし 2.5 秒で返ってこなければ（電波が弱い・オフライン）キャッシュで起動し、ネットの結果は次回のためにしまう
+//  - そのほか: 版つきのファイルなのでキャッシュを優先。なければ取りに行き、取れたらしまう
+const files = ['./', './index.html', `./${jsName}`, `./${cssName}`, './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png', './icon-maskable.png'];
 await writeFile(
   out('sw.js'),
   `// karikosan オフライン用（版 ${BUILD}）
 const CACHE = 'karikosan-${BUILD}';
 const FILES = ${JSON.stringify(files)};
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
+self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('karikosan-') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('message', (e) => { if (e.data === 'skip') self.skipWaiting(); });
+const shell = () => caches.open(CACHE).then((c) => c.match('./index.html').then((r) => r || c.match('./')));
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   const url = new URL(req.url);
-  // 版の確認はいつも最新を
-  if (url.pathname.endsWith('/version.json')) return;
-  // 画面（HTML）はネットを優先し、オフラインならキャッシュ。ほかは版つきのファイルなのでキャッシュを優先
+  if (url.pathname.endsWith('/version.json')) return; // 版の確認はいつも最新を
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then((r) => { const c = r.clone(); caches.open(CACHE).then((cc) => cc.put('./index.html', c)); return r; }).catch(() => caches.match('./index.html')));
+    const net = fetch(req).then((r) => { if (r.ok) { const c = r.clone(); caches.open(CACHE).then((cc) => cc.put('./index.html', c)); } return r; });
+    const slow = new Promise((ok) => setTimeout(ok, 2500)).then(shell);
+    e.respondWith(Promise.race([net.catch(shell), slow.then((r) => r || net)]).then((r) => r || shell()).catch(shell));
     return;
   }
-  e.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
+  e.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req).then((r) => { if (r.ok) { const c = r.clone(); caches.open(CACHE).then((cc) => cc.put(req, c)); } return r; })));
 });
 `,
 );
