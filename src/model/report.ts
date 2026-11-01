@@ -6,6 +6,7 @@
  *  - 前回との差（進捗・遅れ・完了数）と、前回からの完了を出す
  */
 import { addDays, toDay } from './dates';
+import { barColorer } from './colors';
 import { priorityOf } from './priority';
 import { buildRows, isOverdue, statsOf } from './rows';
 import { uid } from './schema';
@@ -21,6 +22,8 @@ export function snapshotRows(d: AppData, vehicleId: ID | 'all', day: DateStr): R
   const open: AppData = { ...d, groups: d.groups.map((g) => ({ ...g, collapsed: false })), settings: { ...d.settings, collapsedV: [] } };
   const rows = buildRows(open, { vehicle: vehicleId, sortMode: 'manual', showDone: true, status: 'all', assignee: null, query: '', today: day });
   const gById = new Map(d.groups.map((g) => [g.id, g]));
+  // 色はガントの色分け（車種・グループ・優先度）と同じ
+  const color = barColorer(d, day);
   const out: ReportRow[] = [];
   const base = { id: '', start: null, due: null, progress: 0, done: false, doneAt: null, level: 0, assignee: '', where: '', total: 0, doneCount: 0, overdue: 0 };
   for (const r of rows) {
@@ -29,7 +32,7 @@ export function snapshotRows(d: AppData, vehicleId: ID | 'all', day: DateStr): R
       out.push({ ...base, id: r.kind === 'pinned' ? 'pinned' : r.vehicle?.id ?? '-', kind: 'v', depth: 0, title: r.kind === 'pinned' ? '固定したグループ' : r.vehicle?.name ?? '車種なし', color: r.kind === 'pinned' ? NAVY : r.vehicle?.color ?? '#9299A3', start: s.start, due: s.end, progress: s.progress, total: s.total, doneCount: s.done, overdue: s.overdue });
     } else if (r.kind === 'group') {
       const s = r.stats;
-      out.push({ ...base, id: r.group.id, kind: 'g', depth: r.depth + (vehicleId === 'all' ? 1 : 0), title: r.group.name, color: r.vehicle?.color ?? NAVY, start: s.start, due: s.end, progress: s.progress, total: s.total, doneCount: s.done, overdue: s.overdue });
+      out.push({ ...base, id: r.group.id, kind: 'g', depth: r.depth + (vehicleId === 'all' ? 1 : 0), title: r.group.name, color: color.mode === 'vehicle' ? r.vehicle?.color ?? NAVY : color.group(r.group), start: s.start, due: s.end, progress: s.progress, total: s.total, doneCount: s.done, overdue: s.overdue });
     } else if (r.kind === 'task') {
       const t = r.task;
       const g = t.groupId ? gById.get(t.groupId) : null;
@@ -41,7 +44,7 @@ export function snapshotRows(d: AppData, vehicleId: ID | 'all', day: DateStr): R
         kind: 't',
         depth: r.depth + (vehicleId === 'all' ? 1 : 0),
         title: t.title || '無題',
-        color: r.vehicle?.color ?? '#3D7469',
+        color: color.task(t),
         start: t.start ?? t.due,
         due: t.due ?? t.start,
         progress: t.done ? 100 : t.progress,

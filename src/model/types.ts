@@ -25,6 +25,8 @@ export interface Group {
   /** 最上位に固定 */
   pinned: boolean;
   collapsed: boolean;
+  /** ガントのバーの色（色分けが「グループ」のとき）。null = 自動（順番に色を割り当て、子ツリーは親の色） */
+  color: string | null;
 }
 
 /** 0 = 自動（期限・進捗から判断）、1 低 / 2 中 / 3 高 / 4 至急 = 手動 */
@@ -111,6 +113,8 @@ export interface Checklist {
 
 export type SortMode = 'manual' | 'due' | 'priority';
 export type GanttZoom = 'day' | 'week' | 'month';
+/** ガントのバーの色分け: 車種の色・グループの色・優先度の色 */
+export type BarColorMode = 'vehicle' | 'group' | 'priority';
 
 export interface Settings {
   /** 文字サイズ 1〜10（初期 4） */
@@ -120,6 +124,10 @@ export interface Settings {
   /** 表示中の車種（'all' = すべて） */
   vehicle: ID | 'all';
   ganttZoom: GanttZoom;
+  /** ガントのバーの色分け */
+  barColor: BarColorMode;
+  /** ガントの項目名の列の幅（rem。null = 画面の幅に合わせて自動） */
+  ganttNameW: number | null;
   /** グループは1つずつ開く（開くとほかのグループを閉じ、1画面に収める） */
   oneGroup: boolean;
   /** 大日程の1マス: week = 1週を広く、month = 1年を見渡す */

@@ -40,6 +40,9 @@ export function GanttScreen() {
         <button type="button" className="iconbtn" aria-label="大項目の並び順" onClick={() => openSheet('order')}>
           <Icon name="list" />
         </button>
+        <button type="button" className="iconbtn pal" aria-label="バーの色分け" title="バーの色分け（車種・グループ・優先度）" onClick={() => openSheet('barColor')}>
+          <Icon name="palette" />
+        </button>
         <button type="button" className="iconbtn xls" aria-label="Excel に出力" title="ガントと状況一覧を Excel に出力" onClick={() => void exportGantt()}>
           <Icon name="sheet" />
         </button>

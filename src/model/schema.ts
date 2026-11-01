@@ -14,7 +14,7 @@ export const VEHICLE_COLORS = ['#3D7469', '#3B6EA8', '#B7791F', '#8E5BA8', '#C25
 let seq = 0;
 export const uid = (p = 'id'): string => `${p}_${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', oneGroup: true, planZoom: 'week', homeMode: 'today', quadBy: 'priority', quadGroups: [null, null, null, null], quadNames: { priority: ['', '', '', ''], group: ['', '', '', ''] }, collapsedV: [] });
+export const defaultSettings = (): Settings => ({ fontStep: 4, showDone: true, sortMode: 'manual', vehicle: 'all', ganttZoom: 'day', barColor: 'vehicle', ganttNameW: null, oneGroup: true, planZoom: 'week', homeMode: 'today', quadBy: 'priority', quadGroups: [null, null, null, null], quadNames: { priority: ['', '', '', ''], group: ['', '', '', ''] }, collapsedV: [] });
 
 export function emptyData(): AppData {
   return { schema: SCHEMA, vehicles: [], groups: [], tasks: [], events: [], checklists: [], plans: [], reports: [], settings: defaultSettings(), updatedAt: Date.now() };
@@ -94,6 +94,7 @@ export function migrate(raw: unknown): AppData {
     order: num(g.order, i),
     pinned: bool(g.pinned),
     collapsed: bool(g.collapsed),
+    color: typeof g.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(g.color) ? g.color : null,
   }));
   // 子ツリーは1段まで（孫は親の親につなぎ直す）
   const byId = new Map(groups.map((g) => [g.id, g]));
@@ -240,6 +241,8 @@ export function migrate(raw: unknown): AppData {
     sortMode: s.sortMode === 'due' || s.sortMode === 'priority' ? s.sortMode : 'manual',
     vehicle: typeof s.vehicle === 'string' && (s.vehicle === 'all' || vIds.has(s.vehicle)) ? s.vehicle : 'all',
     ganttZoom: s.ganttZoom === 'week' || s.ganttZoom === 'month' ? s.ganttZoom : 'day',
+    barColor: s.barColor === 'group' || s.barColor === 'priority' ? s.barColor : 'vehicle',
+    ganttNameW: typeof s.ganttNameW === 'number' && Number.isFinite(s.ganttNameW) ? Math.max(5, Math.min(40, s.ganttNameW)) : null,
     oneGroup: bool(s.oneGroup, d.oneGroup),
     planZoom: s.planZoom === 'month' ? 'month' : 'week',
     homeMode: s.homeMode === 'quad' ? 'quad' : 'today',

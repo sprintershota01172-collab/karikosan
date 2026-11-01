@@ -216,8 +216,8 @@ export function ganttSheet(r: Report): SheetSpec {
         if (head) fill = tint(color, 0.45);
         else if (x.done) fill = tint(color, 0.55);
         else if (doneTo >= c0) fill = color;
-        else if (x.overdue) fill = tint(RED, 0.55);
-        else fill = tint(color, 0.72);
+        else if (x.overdue) fill = tint(RED, 0.4);
+        else fill = tint(color, 0.42);
       }
       cells.push({ v: '', s: { fill, border: 'all', borderColor: isToday ? GOLD : '#E6E8EB' } });
     }

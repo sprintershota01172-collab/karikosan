@@ -32,8 +32,9 @@ import { addPlan, deletePlan, LOAD_LABEL, PLAN_KIND_ORDER, PLAN_KINDS, snapWeeks
 import { REPEAT_LABEL } from '../model/recur';
 import { assignees, type StatusFilter } from '../model/rows';
 import { VEHICLE_COLORS } from '../model/schema';
+import { autoGroupColor, BAR_COLOR_LABEL, GROUP_COLORS, groupColors, PRIORITY_COLORS } from '../model/colors';
 import { search } from '../model/search';
-import type { CalEvent, PlanEvent, Priority } from '../model/types';
+import type { CalEvent, Group, PlanEvent, Priority } from '../model/types';
 import { closeSheet, commit, getData, openSheet, setTab, setUI, toast, useData, useUI } from '../store/store';
 import { AutoArea, Field, PrioBadge, Reveal, Seg, TextInput, Toggle } from './components/bits';
 import { revealIn } from './reveal';
@@ -75,9 +76,18 @@ export function TaskSheet({ props, closing }: SheetProps) {
             <Icon name="trash" size={18} />
             削除
           </button>
-          <button type="button" className={`btn${t.done ? '' : ' primary'}`} onClick={() => (up({ done: !t.done }), !t.done && closeSheet())}>
-            <Icon name={t.done ? 'undo' : 'check'} size={18} />
-            {t.done ? '未完了に戻す' : '完了'}
+          {/* 「完了」= 入力を終えて閉じる（タスクを完了にはしない。完了にするのは上の「済み」のスイッチ） */}
+          <button
+            type="button"
+            className="btn primary"
+            aria-label="入力完了（閉じる）"
+            onClick={() => {
+              (document.activeElement as HTMLElement | null)?.blur?.();
+              setTimeout(closeSheet, 0);
+            }}
+          >
+            <Icon name="check" size={18} />
+            完了
           </button>
         </>
       }
@@ -85,6 +95,7 @@ export function TaskSheet({ props, closing }: SheetProps) {
       <Field label="タスク名">
         <TextInput value={t.title} onCommit={(v) => up({ title: v })} autoFocus={!!props.isNew} placeholder="タスク名" />
       </Field>
+      <Toggle label="このタスクは済み（完了）" hint="下の「完了」ボタンは、入力を終えて閉じるだけです" value={t.done} onChange={(v) => up({ done: v })} />
       <div className="grid2">
         <Field label="開始日">
           <DateInput label="開始日" value={t.start} onChange={(v) => up({ start: v })} />
@@ -257,6 +268,7 @@ export function GroupSheet({ props, closing }: SheetProps) {
           </button>
         </form>
       )}
+      <GroupColorField g={g} />
       {!isChild && <Toggle label="最上位に固定" hint="一覧とガントのいちばん上に表示します" value={g.pinned} onChange={(v) => commit((d) => updateGroup(d, g.id, { pinned: v }))} />}
       <div className="row">
         <span className="grow">並び順</span>
@@ -1017,6 +1029,80 @@ export function ConfirmSheet({ props, closing }: SheetProps) {
   );
 }
 
+/* ---------- ガントのバーの色 ---------- */
+function GroupColorField({ g }: { g: Group }) {
+  const data = useData((d) => d);
+  const auto = autoGroupColor(data, g);
+  return (
+    <Field label={g.parentId ? '色（ガントの色分けが「グループ」のとき。自動 = 親と同じ色）' : '色（ガントの色分けが「グループ」のとき）'}>
+      <div className="swatches">
+        <button type="button" className="auto" style={{ background: auto }} aria-label="自動" aria-pressed={g.color == null ? 'true' : 'false'} onClick={() => commit((d) => updateGroup(d, g.id, { color: null }))}>
+          自動
+        </button>
+        {GROUP_COLORS.map((c) => (
+          <button key={c} type="button" style={{ background: c }} aria-label={c} aria-pressed={g.color === c ? 'true' : 'false'} onClick={() => commit((d) => updateGroup(d, g.id, { color: c }))} />
+        ))}
+      </div>
+    </Field>
+  );
+}
+
+/** バーの色分け（車種・グループ・優先度）。グループの色はここからも変えられる */
+export function BarColorSheet({ closing }: SheetProps) {
+  const mode = useData((d) => d.settings.barColor);
+  const data = useData((d) => d);
+  const gc = useMemo(() => groupColors(data), [data]);
+  const vs = [...data.vehicles].sort((a, b) => a.order - b.order);
+  const tops = data.groups.filter((g) => !g.parentId);
+  return (
+    <Sheet title="バーの色分け" closing={closing}>
+      <Seg value={mode} onChange={(v) => commit((d) => setSettings(d, { barColor: v }), { undoable: false })} options={(['vehicle', 'group', 'priority'] as const).map((v) => ({ value: v, label: BAR_COLOR_LABEL[v] }))} label="バーの色分け" />
+      {mode === 'priority' && (
+        <div className="group-card legend">
+          {([4, 3, 2, 1] as const).map((lv) => (
+            <div key={lv} className="item">
+              <i className="sw" style={{ background: PRIORITY_COLORS[lv] }} />
+              <span className="grow">{LEVEL[lv].label}</span>
+              <span className="micro">{LEVEL[lv].hint}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {mode === 'vehicle' && (
+        <div className="group-card legend">
+          {vs.map((v) => (
+            <button key={v.id} type="button" className="item" onClick={() => openSheet('vehicle', { id: v.id })}>
+              <i className="sw" style={{ background: v.color }} />
+              <span className="grow">{v.name}</span>
+              <Icon name="right" size={16} />
+            </button>
+          ))}
+        </div>
+      )}
+      {mode === 'group' && (
+        <>
+          <div className="micro">グループを押すと色を変えられます（子ツリーは親と同じ色。子ツリーの画面で別の色にもできます）</div>
+          <div className="group-card legend">
+            {[...vs.map((v) => v.id as string | null), null].flatMap((vid) =>
+              tops
+                .filter((g) => g.vehicleId === vid)
+                .sort((a, b) => a.order - b.order)
+                .map((g) => (
+                  <button key={g.id} type="button" className="item" onClick={() => openSheet('group', { id: g.id })}>
+                    <i className="sw" style={{ background: gc.get(g.id) }} />
+                    <span className="grow ellipsis">{g.name}</span>
+                    <span className="micro ellipsis">{vs.find((v) => v.id === vid)?.name ?? '車種なし'}</span>
+                    <Icon name="right" size={16} />
+                  </button>
+                )),
+            )}
+          </div>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
 /* ---------- 長押しのメニュー ---------- */
 export interface MenuAction {
   label: string;
@@ -1136,4 +1222,5 @@ export const SHEETS: Record<string, (p: SheetProps) => ReturnType<typeof Confirm
   report: ReportSheet,
   reports: ReportsSheet,
   menu: MenuSheet,
+  barColor: BarColorSheet,
 };

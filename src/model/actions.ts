@@ -152,12 +152,12 @@ export function addGroup(d: AppData, p: { name: string; vehicleId: ID | null; pa
   const parentId = parent ? parent.parentId ?? parent.id : null;
   const vehicleId = parent ? parent.vehicleId : p.vehicleId;
   const siblings = d.groups.filter((g) => g.parentId === parentId && g.vehicleId === vehicleId);
-  const group: Group = { id: uid('g'), vehicleId, parentId, name: p.name.trim() || (parentId ? '子ツリー' : 'グループ'), order: maxOrder(siblings) + 1, pinned: false, collapsed: false };
+  const group: Group = { id: uid('g'), vehicleId, parentId, name: p.name.trim() || (parentId ? '子ツリー' : 'グループ'), order: maxOrder(siblings) + 1, pinned: false, collapsed: false, color: null };
   // 追加した枠を開く（親を折りたたんでいたら親も開く。1つずつ開く設定なら、ほかは閉じる）
   return { data: setGroupOpen({ ...d, groups: [...d.groups, group] }, group.id, true), group };
 }
 
-export const updateGroup = (d: AppData, id: ID, patch: Partial<Pick<Group, 'name' | 'pinned' | 'collapsed'>>): AppData => touch({ ...d, groups: d.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+export const updateGroup = (d: AppData, id: ID, patch: Partial<Pick<Group, 'name' | 'pinned' | 'collapsed' | 'color'>>): AppData => touch({ ...d, groups: d.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
 
 /**
  * グループを開く・閉じる。「グループは1つずつ開く」のときは、開いたグループと同じ段のほかのグループを閉じる

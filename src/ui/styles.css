@@ -195,7 +195,11 @@ input, textarea, select { font-size: max(1rem, 16px); } /* iPhone の自動拡�
 }
 /* さらに狭いときは「前へ・次へ」を隠す（横スクロールと「今日」で移動できる） */
 @container (max-width: 19rem) {
-  .tb-gantt .step, .tb-gantt .xls { display: none; }
+  .tb-gantt .step, .tb-gantt .xls, .tb-gantt .pal { display: none; }
+}
+/* 前へ・次へは、幅に余裕がないときは隠す（横スクロールと「今日」で移動できる） */
+@container (max-width: 29rem) {
+  .tb-gantt .step { display: none; }
 }
 /* 画面が狭いとき（文字を大きくしたとき）は一覧の担当者・進捗を隠して、タスク名を優先する */
 .main { container: main / inline-size; }
@@ -713,13 +717,14 @@ body { letter-spacing: 0.015em; }
 .gline[aria-selected='true'] .gname { background-color: #f5ecdc; }
 .gline[aria-selected='true'] .gtrack { background-color: rgba(168, 135, 79, 0.08); }
 .gnamecol { background: var(--surface); }
-.gbar .seg-run { opacity: 1; border-radius: 0.4rem; background: color-mix(in srgb, var(--bar, var(--green)) 20%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bar, var(--green)) 50%, transparent); }
-.gbar .fill { opacity: 1; border-radius: 0.4rem; }
-.gbar.over .seg-run { opacity: 1; background: #f6dcd8; box-shadow: inset 0 0 0 1px rgba(184, 66, 58, 0.55); }
-.gbar.done .seg-run { opacity: 0.5; }
-.gbar.done .fill { opacity: 0.4; }
-.gbar.active .seg-run { opacity: 1; background: color-mix(in srgb, var(--bar, var(--green)) 32%, #fff); }
-.gsum { opacity: 0.55; height: 3px; top: calc(50% - 1.5px); border-radius: 2px; }
+.gbar .seg-run { opacity: 1; border-radius: 0.35rem; background: color-mix(in srgb, var(--bar, var(--green)) 68%, #fff); box-shadow: none; }
+.gbar .fill { opacity: 1; border-radius: 0.35rem; background: var(--bar, var(--green)); }
+.gbar .link { opacity: 0.8; }
+.gbar.over .seg-run { opacity: 1; background: #e39a92; box-shadow: none; }
+.gbar.done .seg-run { opacity: 1; background: color-mix(in srgb, var(--bar, var(--green)) 30%, #fff); }
+.gbar.done .fill { opacity: 1; background: color-mix(in srgb, var(--bar, var(--green)) 45%, #fff); }
+.gbar.active .seg-run { opacity: 1; background: color-mix(in srgb, var(--bar, var(--green)) 70%, #fff); }
+.gsum { opacity: 1; background: color-mix(in srgb, var(--bar, var(--navy)) 75%, #fff); height: 4px; top: calc(50% - 2px); border-radius: 2px; }
 /* 名前の列が狭いとき（スマホ）は件数を出さず、名前を優先 */
 @container main (max-width: 30rem) {
   .gline .gname .gcount { display: none; }
@@ -807,3 +812,15 @@ body { letter-spacing: 0.015em; }
 .rup { display: inline-flex; align-items: center; gap: 0.2rem; margin-left: auto; height: 1.75rem; padding: 0 0.6rem; border-radius: 999px; border: 1px solid var(--gold-2); background: transparent; color: #6f5a32; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; }
 .chips .chip { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .item:disabled { opacity: 0.45; }
+
+/* ガントの項目名: 長い名前は2行まで折り返して全部見えるように（列の幅は境目をつまんで変えられる） */
+.gline .gname .reveal { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.12; word-break: break-all; overflow-wrap: anywhere; }
+.gline .gname.t0 .reveal, .gline .gname.t1 .reveal, .gline .gname.t2 .reveal { font-size: 0.76rem; }
+.gline .reveal.over:hover > span { animation: none; display: inline; }
+.gresize { position: absolute; top: 0; bottom: 10px; width: 16px; z-index: 14; cursor: col-resize; touch-action: none; display: flex; justify-content: center; }
+.gresize > i { width: 2px; height: 100%; background: transparent; transition: background var(--t-fast); }
+.gresize:hover > i, .gresize.active > i { background: var(--gold); }
+.gresize::after { content: ''; position: absolute; top: 0.55rem; left: 50%; width: 4px; height: 1.4rem; margin-left: -2px; border-radius: 2px; background: var(--gold-2); opacity: 0.9; }
+.swatches button.auto { width: auto; padding: 0 0.6rem; border-radius: 999px; color: #fff; font-size: 0.75rem; font-weight: 700; }
+.legend .sw { width: 0.9rem; height: 0.9rem; border-radius: 0.25rem; flex: none; }
+.legend .item .micro { flex: 0 1 auto; }

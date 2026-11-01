@@ -11,10 +11,11 @@
  *   日付の確定 → 並べ替え（期限順なら）→ FLIP の行アニメーション、の順に分けて行う。
  */
 import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { reorder, setDone, setGroupOrder, setTaskRange, setVehicleOrder, toggleVehicleOpen } from '../../model/actions';
+import { reorder, setDone, setGroupOrder, setSettings, setTaskRange, setVehicleOrder, toggleVehicleOpen } from '../../model/actions';
+import { barColorer } from '../../model/colors';
 import { addDays, daysInMonth, diffDays, fromDay, isWeekend, monthOf, monthStart, resizeEnd, resizeStart, shiftRange, shortDate, toDay, today, workdays, workRuns } from '../../model/dates';
 import type { Row } from '../../model/rows';
-import type { GanttZoom, Task } from '../../model/types';
+import type { AppData, GanttZoom, Task } from '../../model/types';
 import { LEVEL, priorityOf } from '../../model/priority';
 import { commit, openSheet, setUI, toast, useData, useUI } from '../../store/store';
 import { PrioBadge, Reveal } from '../components/bits';
@@ -112,6 +113,9 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
   const body = useRef<HTMLDivElement | null>(null);
   const size = useSize(box);
   const fontStep = useData((d) => d.settings.fontStep);
+  const savedNameW = useData((d) => d.settings.ganttNameW);
+  /** 名前の列の幅を、境目をつまんで動かしている間の幅（rem）。離したら保存 */
+  const [dragNameW, setDragNameW] = useState<number | null>(null);
   const selected = useUI((u) => u.selected);
   const vehicles = useData((d) => d.vehicles);
   const range = useMemo(() => ganttRange(rows, day), [rows, day]);
@@ -122,11 +126,14 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
     const head = HEAD_REM * px;
     const minRow = 1.4 * px;
     const rowH = Math.max(minRow, Math.floor((size.h - head) / 20));
-    const nameW = Math.round((size.w >= 720 ? 15 : size.w >= 480 ? 11 : 8.5) * px);
+    const auto = size.w >= 720 ? 16 : size.w >= 480 ? 12 : 10;
+    const want = dragNameW ?? savedNameW ?? auto;
+    // 日付の部分が最低 6rem は残るように
+    const nameW = Math.round(Math.max(5 * px, Math.min(want * px, size.w - 6 * px)));
     return { from: range.from, days: range.days, dayW: Math.round(DAY_REM[zoom] * px * 100) / 100, nameW, rowH };
     // fontStep: 文字サイズを変えたら計り直す
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size.w, size.h, range.from, range.days, zoom, fontStep]);
+  }, [size.w, size.h, range.from, range.days, zoom, fontStep, savedNameW, dragNameW]);
 
   const width = geom.nameW + geom.days * geom.dayW;
   const x = (d: string) => diffDays(geom.from, d) * geom.dayW;
@@ -223,7 +230,38 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
     return out;
   }, [geom.from, geom.days]);
 
-  const vColor = useMemo(() => new Map(vehicles.map((v) => [v.id, v.color])), [vehicles]);
+  const groups = useData((d) => d.groups);
+  const barMode = useData((d) => d.settings.barColor);
+  const colorer = useMemo(() => barColorer({ vehicles, groups, settings: { barColor: barMode } as AppData['settings'] }, day), [vehicles, groups, barMode, day]);
+  const rowColor = (r: Row) => (r.kind === 'task' ? colorer.task(r.task) : r.kind === 'group' ? colorer.group(r.group) : 'var(--navy)');
+
+  /** 名前の列の幅を変える（境目をつまんで左右に動かす。ダブルクリック・ダブルタップで自動に戻す） */
+  const resize = (e: PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const px = rootPx();
+    const x0 = e.clientX;
+    const w0 = geom.nameW / px;
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture?.(e.pointerId);
+    el.classList.add('active');
+    let w = w0;
+    const move = (m: PointerEvent) => {
+      w = Math.round(Math.max(5, Math.min(40, w0 + (m.clientX - x0) / px)) * 4) / 4;
+      setDragNameW(w);
+    };
+    const up = () => {
+      el.classList.remove('active');
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      if (Math.abs(w - w0) >= 0.25) commit((d) => setSettings(d, { ganttNameW: w }), { undoable: false });
+      setDragNameW(null);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
   // 車種・グループの行と一緒に動く行の数（中のグループ・タスク）
   const spans = useMemo(() => {
     const lvl = (r: Row) => (r.kind === 'vehicle' || r.kind === 'pinned' || r.kind === 'prio' ? 0 : r.kind === 'group' ? r.depth + 1 : 3);
@@ -297,7 +335,7 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
                   </div>
                 )}
                 {rows.map((r, i) => (
-                  <GanttRow key={r.key} r={r} span={spans[i]} all={allView} geom={geom} selected={r.kind === 'task' ? selected === r.task.id : selected === r.key} color={r.kind === 'task' ? vColor.get(r.task.vehicleId ?? '') ?? 'var(--green)' : r.kind === 'group' ? r.vehicle?.color ?? 'var(--navy)' : 'var(--navy)'} day={day} />
+                  <GanttRow key={r.key} r={r} span={spans[i]} all={allView} geom={geom} selected={r.kind === 'task' ? selected === r.task.id : selected === r.key} color={rowColor(r)} day={day} />
                 ))}
                 {rows.length === 0 && (
                   <div className="empty gempty" style={{ position: 'sticky', left: 0, width: `${size.w}px`, height: `${bodyH}px` }}>
@@ -308,6 +346,17 @@ export function Gantt({ rows, zoom, scrollApi }: { rows: Row[]; zoom: GanttZoom;
             </div>
           </div>
           <ScrollBars scroller={scroller} left={geom.nameW} top={headH} />
+          <div
+            className="gresize"
+            style={{ left: `${geom.nameW - 8}px` }}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="項目名の列の幅（左右に動かす。ダブルタップで元に戻す）"
+            onPointerDown={resize}
+            onDblClick={() => commit((d) => setSettings(d, { ganttNameW: null }), { undoable: false, toast: '項目名の列の幅を元に戻しました' })}
+          >
+            <i />
+          </div>
         </div>
       )}
     </div>

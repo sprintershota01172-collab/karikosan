@@ -210,3 +210,81 @@ describe('大日程の今週', () => {
 describe('エラー', () => {
   it('ブラウザのエラーが出ていない', () => assert.deepEqual(errors, []));
 });
+
+describe('編集画面の「完了」・バーの色分け・項目名の列', () => {
+  it('編集画面の「完了」は入力を終えて閉じるだけ（タスクは完了にならない）。完了はスイッチで', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'tasks');
+    const row = page.locator('.trow', { hasText: '図面の出図' });
+    await row.click();
+    await row.click();
+    await page.waitForTimeout(400);
+    const name = sheet(page).locator('.inp').first();
+    await name.fill('図面の出図（改）');
+    await sheet(page).locator('.sheet-foot .btn.primary', { hasText: '完了' }).click();
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator('.sheet').count(), 0, '閉じた');
+    const r2 = page.locator('.trow', { hasText: '図面の出図（改）' });
+    assert.equal(await r2.count(), 1, '入力した名前が保存された');
+    assert.equal(await r2.locator('[role="checkbox"]').getAttribute('aria-checked'), 'false', '完了にはならない');
+    await r2.click(); // 選んだままなので1回で開く
+    await page.waitForTimeout(400);
+    await sheet(page).locator('button[role="switch"][aria-label^="このタスクは済み"]').click();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    assert.equal(await r2.locator('[role="checkbox"]').getAttribute('aria-checked'), 'true');
+    await ctx.close();
+  });
+
+  it('ガントのバーの色分け: 車種・グループ・優先度。グループの色は自分で決められる。バーは透けない', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'gantt');
+    const color = (t) => page.locator('.gline', { hasText: t }).locator('.gbar').evaluate((e) => getComputedStyle(e).getPropertyValue('--bar').trim());
+    const v = await color('原価の見積もり');
+    await page.click('[aria-label="バーの色分け"]');
+    await sheet(page).locator('.seg button', { hasText: '優先度' }).click();
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    assert.equal((await color('バンパー形状の検討')).toUpperCase(), '#C23B32', '至急は赤');
+    await page.click('[aria-label="バーの色分け"]');
+    await sheet(page).locator('.seg button', { hasText: 'グループ' }).click();
+    await page.waitForTimeout(200);
+    await sheet(page).locator('.legend .item', { hasText: '金型' }).click();
+    await page.waitForTimeout(300);
+    await sheet(page).locator('.swatches button[aria-label="#7A4E9C"]').click();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    const g = await color('型構想の打ち合わせ準備').catch(() => null);
+    const sum = await page.locator('.gline[data-group-anchor]', { hasText: '金型' }).locator('.gsum').evaluate((e) => getComputedStyle(e).getPropertyValue('--bar').trim());
+    assert.equal(sum.toUpperCase(), '#7A4E9C', '選んだ色');
+    if (g) assert.equal(g.toUpperCase(), '#7A4E9C');
+    assert.notEqual(v, '#7A4E9C');
+    const op = await page.locator('.gbar .seg-run').first().evaluate((e) => getComputedStyle(e).opacity);
+    assert.equal(op, '1', '透けない');
+    await ctx.close();
+  });
+
+  it('ガントの項目名は2行まで折り返して全部見える。列の幅は境目をつまんで変えられ、次に開いても同じ', async () => {
+    const { ctx, page } = await open('iphone');
+    await tab(page, 'gantt');
+    const cut = await page.$$eval('.pane:not(.out) .gline .gname .reveal', (els) => els.filter((e) => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+    assert.deepEqual(cut, [], '切れている名前がない');
+    const w0 = await page.$eval('.gcorner', (e) => e.getBoundingClientRect().width);
+    const h = await page.locator('.gresize').boundingBox();
+    await page.mouse.move(h.x + h.width / 2, h.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(h.x + h.width / 2 + 60, h.y + 20, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const w1 = await page.$eval('.gcorner', (e) => e.getBoundingClientRect().width);
+    assert.ok(Math.abs(w1 - w0 - 60) < 6, `${w0} → ${w1}`);
+    assert.ok(Math.abs((await page.$eval('.gline .gname', (e) => e.getBoundingClientRect().width)) - w1) < 1.5, '名前の列も同じ幅');
+    await tab(page, 'tasks');
+    await tab(page, 'gantt');
+    const w2 = await page.$eval('.gcorner', (e) => e.getBoundingClientRect().width);
+    assert.ok(Math.abs(w2 - w1) < 2, '保存される');
+    await ctx.close();
+  });
+});
